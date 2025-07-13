@@ -184,47 +184,6 @@ export async function submitFormSpecial(args, patientId, formCollection) {
   }
 }
 
-export async function submitRegClinics(postalCode, patientId) {
-  const clinicSlotsCollection = getClinicSlotsCollection()
-  // Check if the limit has been reached yet for the clinic
-  const clinicSlots = await clinicSlotsCollection.findOne({ postalCode })
-  if (clinicSlots) {
-    const maxSlots = defaultSlots[postalCode]
-    const currentSlots = clinicSlots.counterItems.length
-    if (currentSlots >= maxSlots) {
-      return { result: false, error: 'No more slots available for this location' }
-    }
-  }
-
-  await clinicSlotsCollection.findOneAndUpdate(
-    { postalCode },
-    { $push: { counterItems: patientId } },
-    { upsert: true },
-  )
-
-  const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-  const registrationFormRecords = mongoConnection.db('phs').collection('registrationForm')
-  const patientRegForm = await registrationFormRecords.findOne({ _id: patientId })
-
-  try {
-    if (patientRegForm && patientRegForm.registrationQ10) {
-      const location = patientRegForm.registrationQ10.trim()
-      const prevPostalCode = location === 'None' ? location : location.slice(-6)
-      await clinicSlotsCollection.findOneAndUpdate(
-        {
-          postalCode: prevPostalCode,
-        },
-        {
-          $pull: { counterItems: patientId },
-        },
-      )
-    }
-    return { result: true }
-  } catch (error) {
-    return { result: false, error: error.message }
-  }
-}
-
 export async function submitPreRegForm(args, patientId, formCollection) {
   try {
     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')

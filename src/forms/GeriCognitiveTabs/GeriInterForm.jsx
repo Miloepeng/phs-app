@@ -155,7 +155,7 @@ const GeriInterForm = () => {
           ) : (
             <div className='summary--question-div'>
               <p>Patient consented to being considered for participation in Long Term Follow-Up (LTFU)?
-                (Patient has to sign and tick Form C)<br></br><strong>{regi.registrationQ19}</strong></p>
+                (Patient has to sign and tick Form C)<br></br><strong>{regi.registrationQ20}</strong></p>
             </div>
           )}
         </Grid>
