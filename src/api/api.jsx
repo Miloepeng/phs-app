@@ -11,6 +11,7 @@ import { updateAllStationCounts } from '../services/stationCounts'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import axios from 'axios'
+import {apiGet, apiPost} from '../apiClient.js'
 
 pdfMake.vfs = pdfFonts.vfs
 
@@ -50,7 +51,7 @@ export async function preRegister(preRegArgs) {
   try {
     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
     const patientsRecord = mongoConnection.db('phs').collection('patients')
-    const qNum = await mongoDB.currentUser.functions.getNextQueueNo()
+    const qNum = await mongoDB.currentUser.functions.getNextQueueNo() //need to implement this without using mongoDB functions
     await patientsRecord.insertOne({ queueNo: qNum, ...data })
     data = { patientId: qNum, ...data }
     isSuccess = true
@@ -61,93 +62,140 @@ export async function preRegister(preRegArgs) {
   return { result: isSuccess, data: data, error: errorMsg }
 }
 
+// HTTP request version of preRegister
+/*
+export async function preRegisterHttp(preRegArgs) {
+  try {
+    const response = await axios.post('/api/pre-register', preRegArgs)
+    return response.data
+  } catch (error) {
+    console.error('Error in preRegisterHttp:', error)
+    return { result: false, error: error.message }
+  }
+}
+*/
+
+// export async function submitForm(args, patientId, formCollection) {
+//   try {
+//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+//     const patientsRecord = mongoConnection.db('phs').collection('patients')
+//     const registrationForms = mongoConnection.db('phs').collection(formCollection)
+//     const record2 = await patientsRecord.findOne({ queueNo: patientId })
+
+//     let qNum = 0
+
+//     let gender = args.registrationQ5
+//     let initials = args.registrationQ2
+//     let age = args.registrationQ4
+//     let preferredLanguage = args.registrationQ14
+//     let goingForPhlebotomy = args.registrationQ15
+
+//     let data = {
+//       gender: gender,
+//       initials: initials,
+//       age: age,
+//       preferredLanguage: preferredLanguage,
+//       goingForPhlebotomy: goingForPhlebotomy,
+//     }
+
+//     console.log('patient id: ' + record2)
+
+//     if (record2 == null) {
+//       qNum = await mongoDB.currentUser.functions.getNextQueueNo()
+//       await patientsRecord.insertOne({ queueNo: qNum, ...data })
+//       patientId = qNum
+//     }
+
+//     const record = await patientsRecord.findOne({ queueNo: patientId })
+
+//     if (record) {
+//       if (record[formCollection] === undefined) {
+//         // first time form is filled, create document for form
+//         await patientsRecord.updateOne(
+//           { queueNo: patientId },
+//           { $set: { [formCollection]: patientId } },
+//         )
+
+//         await registrationForms.insertOne({ _id: patientId, ...args })
+
+//         await updateAllStationCounts(patientId)
+
+//         return { result: true, data: data, qNum: patientId }
+//       } else {
+//         if (await isAdmin()) {
+//           args.lastEdited = new Date()
+//           args.lastEditedBy = getName()
+//           await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
+//           if (formCollection == 'registrationForm') {
+//             await patientsRecord.updateOne(
+//               { queueNo: patientId },
+//               { $set: { initials: args.registrationQ2 } },
+//             )
+//             await patientsRecord.updateOne(
+//               { queueNo: patientId },
+//               { $set: { age: args.registrationQ4 } },
+//             )
+//           }
+//           await updateAllStationCounts(patientId)
+//           // replace form
+//           // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
+//           // throw error message
+//           // const errorMsg = "This form has already been submitted. If you need to make "
+//           //         + "any changes, please contact the admin."
+//           return { result: true, data: data, qNum: patientId }
+//         } else {
+//           const errorMsg =
+//             'This form has already been submitted. If you need to make ' +
+//             'any changes, please contact the admin.'
+//           return { result: false, error: errorMsg }
+//         }
+//       }
+//     } else {
+//       // TODO: throw error, not possible that no document is found
+//       // unless malicious user tries to change link to directly access reg page
+//       // Can check in every form page if there is valid patientId instead
+//       // cannot use useEffect since the form component is class component
+//       const errorMsg = 'An error has occurred.'
+//       console.log('There is an error here')
+//       // You will be directed to the registration page." logic not done
+//       return { result: false, error: errorMsg }
+//     }
+//   } catch (err) {
+//     return { result: false, error: err }
+//   }
+// }
+
 export async function submitForm(args, patientId, formCollection) {
   try {
-    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    const patientsRecord = mongoConnection.db('phs').collection('patients')
-    const registrationForms = mongoConnection.db('phs').collection(formCollection)
-    const record2 = await patientsRecord.findOne({ queueNo: patientId })
-
-    let qNum = 0
-
-    let gender = args.registrationQ5
-    let initials = args.registrationQ2
-    let age = args.registrationQ4
-    let preferredLanguage = args.registrationQ14
-    let goingForPhlebotomy = args.registrationQ15
-
-    let data = {
-      gender: gender,
-      initials: initials,
-      age: age,
-      preferredLanguage: preferredLanguage,
-      goingForPhlebotomy: goingForPhlebotomy,
-    }
-
-    console.log('patient id: ' + record2)
-
-    if (record2 == null) {
-      qNum = await mongoDB.currentUser.functions.getNextQueueNo()
-      await patientsRecord.insertOne({ queueNo: qNum, ...data })
-      patientId = qNum
-    }
-
-    const record = await patientsRecord.findOne({ queueNo: patientId })
-
-    if (record) {
-      if (record[formCollection] === undefined) {
-        // first time form is filled, create document for form
-        await patientsRecord.updateOne(
-          { queueNo: patientId },
-          { $set: { [formCollection]: patientId } },
-        )
-
-        await registrationForms.insertOne({ _id: patientId, ...args })
-
-        await updateAllStationCounts(patientId)
-
-        return { result: true, data: data, qNum: patientId }
-      } else {
-        if (await isAdmin()) {
-          args.lastEdited = new Date()
-          args.lastEditedBy = getName()
-          await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
-          if (formCollection == 'registrationForm') {
-            await patientsRecord.updateOne(
-              { queueNo: patientId },
-              { $set: { initials: args.registrationQ2 } },
-            )
-            await patientsRecord.updateOne(
-              { queueNo: patientId },
-              { $set: { age: args.registrationQ4 } },
-            )
-          }
-          await updateAllStationCounts(patientId)
-          // replace form
-          // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
-          // throw error message
-          // const errorMsg = "This form has already been submitted. If you need to make "
-          //         + "any changes, please contact the admin."
-          return { result: true, data: data, qNum: patientId }
-        } else {
-          const errorMsg =
-            'This form has already been submitted. If you need to make ' +
-            'any changes, please contact the admin.'
-          return { result: false, error: errorMsg }
-        }
+    // If no patient yet, create a patient first (derive minimal fields from registration form)
+    let effectiveId = patientId
+    if (effectiveId === -1 || effectiveId == null) {
+      const payload = {
+        gender: args.registrationQ5,
+        initials: (args.registrationQ2 || '').trim(),
+        age: Number(args.registrationQ4 ?? 0),
+        preferredLanguage: (args.registrationQ14 || '').trim(),
+        goingForPhlebotomy: args.registrationQ15 ?? 'No',
       }
-    } else {
-      // TODO: throw error, not possible that no document is found
-      // unless malicious user tries to change link to directly access reg page
-      // Can check in every form page if there is valid patientId instead
-      // cannot use useEffect since the form component is class component
-      const errorMsg = 'An error has occurred.'
-      console.log('There is an error here')
-      // You will be directed to the registration page." logic not done
-      return { result: false, error: errorMsg }
+      const created = await apiPost('/patients', payload)
+      if (!created?.result) return { result: false, error: 'Failed to create patient' }
+      effectiveId = created.data.queueNo
+    }
+
+    // Upsert form data
+    const upsert = await apiPost(`/forms/${encodeURIComponent(formCollection)}/${encodeURIComponent(effectiveId)}`, {
+      data: args,
+    })
+    if (!upsert?.result) return { result: false, error: 'Failed to save form' }
+
+    // Return same shape your caller expects
+    return {
+      result: true,
+      data: { ...args, patientId: effectiveId },
+      qNum: effectiveId,
     }
   } catch (err) {
-    return { result: false, error: err }
+    return { result: false, error: err?.message || String(err) }
   }
 }
 

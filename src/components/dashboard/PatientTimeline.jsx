@@ -7,10 +7,11 @@ import TimelineConnector from '@mui/lab/TimelineConnector'
 import TimelineContent from '@mui/lab/TimelineContent'
 import TimelineDot from '@mui/lab/TimelineDot'
 import { useNavigate } from 'react-router-dom'
-import mongoDB, { isAdmin } from '../../services/mongoDB'
+import { isAdmin } from '../../services/mongoDB'
 import { ScrollTopContext } from '../../api/utils.js'
 import CircularProgress from '@mui/material/CircularProgress'
 import { Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
+import { apiGet } from 'src/apiClient'
 
 // Timeline item configuration - add/delete stations here (comment out)
 const timelineItems = [
@@ -172,24 +173,36 @@ const BasicTimeline = (props) => {
   const { scrollTop } = useContext(ScrollTopContext)
 
   useEffect(() => {
-    const createFormsStatus = async () => {
-      try {
-        const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-        const patientsRecord = mongoConnection.db('phs').collection('patients')
-        // patientId must be valid for this component to even render
-        // checks done in parent component Dashboard.js
-        // hence, if there is no record, likely there is implementation bug
-        const record = await patientsRecord.findOne({ queueNo: props.patientId })
+    // const createFormsStatus = async () => {
+    //   try {
+    //     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+    //     const patientsRecord = mongoConnection.db('phs').collection('patients')
+    //     // patientId must be valid for this component to even render
+    //     // checks done in parent component Dashboard.js
+    //     // hence, if there is no record, likely there is implementation bug
+    //     const record = await patientsRecord.findOne({ queueNo: props.patientId })
 
-        setFormDone(generateStatusObject(record))
-        setLoading(false)
-        isAdmins(await isAdmin())
-      } catch (err) {
-        alert(err)
-        console.log('error is here')
-        navigate('/app/registration', { replace: true })
-      }
+    //     setFormDone(generateStatusObject(record))
+    //     setLoading(false)
+    //     isAdmins(await isAdmin())
+    //   } catch (err) {
+    //     alert(err)
+    //     console.log('error is here')
+    //     navigate('/app/registration', { replace: true })
+    //   }
+    // }
+    const createFormsStatus = async () => {
+    try {
+      const res = await apiGet(`/patients/${props.patientId}?collection=patients`)
+      const record = res.data
+      setFormDone(generateStatusObject(record))
+      setLoading(false)
+      isAdmins(await isAdmin())
+    } catch (err) {
+      alert(err)
+      navigate('/app/registration', { replace: true })
     }
+  }
     createFormsStatus()
   }, [navigate, props.patientId])
   if (loading) {
