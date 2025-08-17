@@ -56,7 +56,8 @@ export const getEligibilityRows = (forms = {}) => {
     hxm4m5?.hxM4M5Q1 === 'Yes' ||
     ophthal?.OphthalQ9?.includes("Referred to Doctor's Station")
 
-  const isDietitianEligible = hxsocial?.SOCIAL15 === 'Yes'
+  const isDietitianEligible = pmhx?.PMHX5?.includes("Hypertension") || pmhx?.PMHX5?.includes("Hyperlipidemia") || pmhx?.PMHX5?.includes("Diabetes/Pre-Diabetic") 
+                              || pmhx?.PMHX5?.includes("Kidney Disease") || pmhx?.PMHX5?.includes("Heart disease") || pmhx?.PMHX5?.includes("Others")
   const isSocialServicesEligible =
     hxsocial?.SOCIAL6 === 'Yes' ||
     hxsocial?.SOCIAL7 === 'Yes' ||
@@ -78,7 +79,7 @@ export const getEligibilityRows = (forms = {}) => {
     createData('Lung Function Testing', isLungFunctionEligible),
     createData("Women's Cancer Education", isWomenCancerEducationEligible),
     createData('Podiatry', isPodiatryEligible),
-    createData("Dietitian's Consult", isDietitianEligible),
+    createData("Nutritionist's/Dietitian's Consult", isDietitianEligible),
     createData('Geriatric Screening', isGeriatricScreeningEligible),
     createData('Ophthalmology', isOphthalmologyEligible),
     createData('Oral Health', isDentalEligible),
