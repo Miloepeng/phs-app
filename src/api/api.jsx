@@ -1782,7 +1782,14 @@ function patientIdSection(patient) {
   };
 }
 
-function eligibilitySection(eligibilityRows) {
+function eligibilitySection(eligibilityRows, {pmhx}) {
+
+  const isNutritionistEligible = pmhx?.PMHX5?.includes("Hypertension") || pmhx?.PMHX5?.includes("Hyperlipidemia") || pmhx?.PMHX5?.includes("Diabetes/Pre-Diabetic")
+  const isDieticianEligible = pmhx?.PMHX5?.includes("Kidney Disease") || pmhx?.PMHX5?.includes("Heart disease") || pmhx?.PMHX5?.includes("Others")
+  const dietText =
+  isNutritionistEligible && isDieticianEligible ? "Nutritionist & Dietitians" :
+  isNutritionistEligible ? "Nutritionist" :
+  isDieticianEligible ? "Dietitians" : "";
 
   const col1Labels = [
     '4', '5', '6', '7', '8', '9', '', '', '', '', '10', '11', '12',
@@ -1794,7 +1801,7 @@ function eligibilitySection(eligibilityRows) {
     { label: 'Lung Function Testing', eligibilityKey: 'Lung Function Testing' },
     { label: 'Womens Cancer Education', eligibilityKey: "Women's Cancer Education" },
     { label: 'Podiatry', eligibilityKey: 'Podiatry' },
-    { label: 'Dietitians Consult', eligibilityKey: "Dietitian's Consult" },
+    { label: 'Nutritionist/Dietitians Consult', eligibilityKey: "Nutritionist's/Dietitian's Consult" },
     { label: 'Geriatic Screening', eligibilityKey: 'Geriatric Screening' },
     { label: '    Cognitive Function', eligibilityKey: 'Geriatric Screening' }, // grouped under GS
     { label: '    Mobility', eligibilityKey: 'Geriatric Screening' },
@@ -1827,7 +1834,9 @@ function eligibilitySection(eligibilityRows) {
     { text: '' },
     { text: '' },
     { text: '' },
-    { text: '' },
+    (dietText
+    ? { text: `Eligible for: ${dietText}`, fontSize: 9, bold: true }
+    : { text: '' }),
     {
       stack: [
         {
