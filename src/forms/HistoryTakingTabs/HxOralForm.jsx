@@ -143,7 +143,8 @@ export default function HxOralForm({ changeTab, nextTab }) {
           />
 
           <Typography variant='subtitle1' fontWeight='bold'>
-            Are you currently experiencing any pain in your mouth area?
+            Are you experiencing any dental concerns (eg. currently experiencing any pain in your
+            mouth area)?
           </Typography>
           <FastField
             name='ORAL3'

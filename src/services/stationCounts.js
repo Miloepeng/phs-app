@@ -40,7 +40,7 @@ export const getEligibilityRows = (forms = {}) => {
     hxgynae?.GYNAE16 === 'Yes'
   const isAudiometryEligible = reg?.registrationQ4 >= 60 && hcsr?.hxHcsrQ5 === 'No'
   const isGeriatricScreeningEligible = reg?.registrationQ4 >= 60
-  const isOphthalmologyEligible = reg?.registrationQ4 >= 40
+  const isOphthalmologyEligible = reg?.registrationQ4 >= 60
 
   const isDoctorStationEligible =
     triage?.triageQ9 === 'Yes' ||
