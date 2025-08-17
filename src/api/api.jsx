@@ -1868,7 +1868,7 @@ function eligibilitySection(eligibilityRows, pmhx = {}) {
     { label: 'Womens Cancer Education', eligibilityKey: "Women's Cancer Education" },
     { label: 'Podiatry', eligibilityKey: 'Podiatry' },
     {
-      label: 'Nutritionist/Dietitians Consult',
+      label: 'Nutr. /Diet. Consult',
       eligibilityKey: "Nutritionist's/Dietitian's Consult",
     },
     { label: 'Geriatic Screening', eligibilityKey: 'Geriatric Screening' },
