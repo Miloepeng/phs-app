@@ -43,18 +43,19 @@ export const getEligibilityRows = (forms = {}) => {
   const isOphthalmologyEligible = reg?.registrationQ4 >= 60 || hcsr?.hxHcsrQ3 === 'Yes'
 
   const isDoctorStationEligible =
-    triage?.triageQ9 === 'Yes' ||
-    hcsr?.hxHcsrQ7 === 'Yes' ||
-    hcsr?.hxHcsrQ6 === 'Yes' ||
-    pmhx?.PMHX7 === 'Yes' ||
-    //phq?.PHQ9 !== '0 - Not at all'
-    // NOTE^ this makes Doctor's Station Eligible with phq?.PHQ9 !== '0 - Not at all'
-    phq?.PHQ10 >= 10 ||
-    phq?.PHQ9 == '1 - Several days' ||
-    phq?.PHQ9 == '2 - More than half the days' ||
-    phq?.PHQ9 == '3 - Nearly everyday' ||
-    hxm4m5?.hxM4M5Q1 === 'Yes' ||
-    ophthal?.OphthalQ9?.includes("Referred to Doctor's Station")
+    hxm4m5?.hxM4M5Q1 === 'Yes' &&
+    (triage?.triageQ9 === 'Yes' ||
+      hcsr?.hxHcsrQ7 === 'Yes' ||
+      hcsr?.hxHcsrQ6 === 'Yes' ||
+      pmhx?.PMHX7 === 'Yes' ||
+      //phq?.PHQ9 !== '0 - Not at all'
+      // NOTE^ this makes Doctor's Station Eligible with phq?.PHQ9 !== '0 - Not at all'
+      phq?.PHQ10 >= 10 ||
+      phq?.PHQ9 == '1 - Several days' ||
+      phq?.PHQ9 == '2 - More than half the days' ||
+      phq?.PHQ9 == '3 - Nearly everyday')
+
+  ophthal?.OphthalQ9?.includes("Referred to Doctor's Station")
 
   const isDietitianEligible =
     pmhx?.PMHX5?.includes('Hypertension') ||
