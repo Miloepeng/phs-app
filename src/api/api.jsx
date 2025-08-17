@@ -1,29 +1,26 @@
-import React from 'react'
-import mongoDB, { getName, isAdmin, getClinicSlotsCollection } from '../services/mongoDB'
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
+import { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
+import mongoDB, { getName, isAdmin } from '../services/mongoDB';
 
+import { bloodpressureQR, bmiQR, tempQR } from 'src/icons/QRCodes';
 import updatedLogo from 'src/icons/UpdatedIcon';
-import { bloodpressureQR, bmiQR, tempQR } from 'src/icons/QRCodes'
 
 //import 'jspdf-autotable'
-import { parseFromLangKey, setLang, setLangUpdated } from './langutil'
-import { updateAllStationCounts } from '../services/stationCounts'
-import pdfMake from 'pdfmake/build/pdfmake'
-import pdfFonts from 'pdfmake/build/vfs_fonts'
+import pdfMake from 'pdfmake/build/pdfmake';
+import pdfFonts from 'pdfmake/build/vfs_fonts';
+import { updateAllStationCounts } from '../services/stationCounts';
+import { parseFromLangKey, setLang, setLangUpdated } from './langutil';
 
-import { getSavedData, getSavedPatientData, addToFormAQueue } from '../services/mongoDB'
+import { addToFormAQueue, getSavedData, getSavedPatientData } from '../services/mongoDB';
 
 
+import { generateStatusObject } from 'src/components/dashboard/PatientTimeline';
+import allForms from '../forms/forms.json';
+import { checkedBox, uncheckedBox } from '../icons/checked';
 import pic1 from '../icons/pic1-forma';
 import pic2 from '../icons/pic2-forma';
-import { checkedBox, uncheckedBox } from '../icons/checked';
-import allForms from '../forms/forms.json';
 import { getEligibilityRows } from '../services/stationCounts';
-import { generateStatusObject } from 'src/components/dashboard/PatientTimeline';
 
-import { mandarinNormal } from './lang/mandarin-normal'
-import { mandarinBold } from './lang/mandarin-bold'
 
 pdfMake.vfs = pdfFonts.vfs
 
@@ -1653,7 +1650,7 @@ export const generateDoctorPdf = async (entry) => {
         margin: [0, 2, 0, 10],
       },
     ]
-    
+
     content.push({ text: '\nThank you very much.', margin: [0, 2, 0, 10] })
 
     return content
@@ -1727,6 +1724,7 @@ export const generateFormAPdf = async (patientId) => {
 
   const formData = { reg, pmhx, hxsocial, hxfamily, triage, hcsr, hxoral, wce, phq, hxm4m5, hxgynae };
   const eligibilityRows = getEligibilityRows(formData);
+  const patient = await getSavedPatientData(patientId, 'patients')
 
   const docDefinition = {
     pageOrientation: 'landscape',
@@ -1753,6 +1751,7 @@ export const generateFormAPdf = async (patientId) => {
     },
     pageMargins: [40, 60, 40, 60],
     content: [
+      patientIdSection(patient),
       chasStatusSection(reg),
       pioneerGenSection(reg),
       triageTableSection(triage),
@@ -1761,13 +1760,27 @@ export const generateFormAPdf = async (patientId) => {
     ]
   };
 
-  const patient = await getSavedPatientData(patientId, 'patients')
   let fileName = 'Report.pdf'
   if (patient.initials) {
     fileName = patient.initials.split(' ').join('_') + '_FormA.pdf'
   }
   pdfMake.createPdf(docDefinition).download(fileName)
 };
+
+function patientIdSection(patient) {
+  return {
+    columns: [
+      {
+        text: `Patient ID: ${patient.queueNo ?? 'N/A'}    Initials: ${patient.initials ?? 'N/A'}`,
+        fontSize: 12,
+        bold: true,
+        alignment: 'right',
+        margin: [0, -25, 0, 5]
+      }
+    ],
+    margin: [0, 0, 0, 5]
+  };
+}
 
 function eligibilitySection(eligibilityRows) {
 
@@ -2199,11 +2212,30 @@ function triageTableSection(triage = {}) {
 
 let formAImages = [pic1, pic2];
 
+
+// Old picSections function, was changed on 17 Aug 12:45am to accomodate for unwanted page break when patient ID was added to form A
+// Feel free to uncomment this if form A generation is broken
+// function picSections() {
+//   return formAImages
+//     .filter(img => !!img)
+//     .map((img, index) => ({
+//       pageBreak: index === 0 ? 'before' : 'before',
+//       stack: [
+//         {
+//           image: img,
+//           width: 700,
+//           alignment: 'center',
+//         }
+//       ],
+//     }));
+// }
+
+// New picSections function to handle unwanted page break after page 1 of Form A
 function picSections() {
   return formAImages
     .filter(img => !!img)
     .map((img, index) => ({
-      pageBreak: index === 0 ? 'before' : 'before',
+      ...(index > 0 ? { pageBreak: 'before' } : {}),
       stack: [
         {
           image: img,
