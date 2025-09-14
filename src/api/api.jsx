@@ -1,19 +1,41 @@
-import React from 'react'
-import { getName, isAdmin, getClinicSlotsCollection } from '../services/mongoDB'
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
-import { defaultSlots } from 'src/forms/RegForm'
-import logo from 'src/icons/Icon'
-import { bloodpressureQR, bmiQR } from 'src/icons/QRCodes'
+import mongoDB, { getName, isAdmin } from '../services/mongoDB'
+
+import { bloodpressureQR, bmiQR, tempQR } from 'src/icons/QRCodes'
+import updatedLogo from 'src/icons/UpdatedIcon'
+
 //import 'jspdf-autotable'
-import { parseFromLangKey, setLang } from './langutil'
-import { updateAllStationCounts } from '../services/stationCounts'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import axios from 'axios'
-import {apiGet, apiPost} from '../apiClient.js'
+import { updateAllStationCounts } from '../services/stationCounts'
+import { parseFromLangKey, setLang, setLangUpdated } from './langutil'
+
+import { addToFormAQueue, getSavedData, getSavedPatientData } from '../services/mongoDB'
+
+import { generateStatusObject } from 'src/components/dashboard/PatientTimeline'
+import allForms from '../forms/forms.json'
+import { checkedBox, uncheckedBox } from '../icons/checked'
+import pic1 from '../icons/pic1-forma'
+import pic2 from '../icons/pic2-forma'
+import { getEligibilityRows } from '../services/stationCounts'
 
 pdfMake.vfs = pdfFonts.vfs
+
+pdfMake.fonts = {
+  Roboto: {
+    normal: 'Roboto-Regular.ttf',
+    bold: 'Roboto-Regular.ttf',
+    italics: 'Roboto-Regular.ttf',
+    bolditalics: 'Roboto-Regular.ttf',
+  },
+  fangzhen: {
+    normal: 'fzhei-jt.ttf',
+    bold: 'fzhei-jt.ttf',
+    italics: 'fzhei-jt.ttf',
+    bolditalics: 'fzhei-jt.ttf',
+  },
+}
 
 // export async function preRegister(preRegArgs) {
 //   let gender = preRegArgs.gender
@@ -51,7 +73,7 @@ pdfMake.vfs = pdfFonts.vfs
 //   try {
 //     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
 //     const patientsRecord = mongoConnection.db('phs').collection('patients')
-//     const qNum = await mongoDB.currentUser.functions.getNextQueueNo() //need to implement this without using mongoDB functions
+//     const qNum = await mongoDB.currentUser.functions.getNextQueueNo()
 //     await patientsRecord.insertOne({ queueNo: qNum, ...data })
 //     data = { patientId: qNum, ...data }
 //     isSuccess = true
@@ -62,354 +84,157 @@ pdfMake.vfs = pdfFonts.vfs
 //   return { result: isSuccess, data: data, error: errorMsg }
 // }
 
-// HTTP request version of preRegister
-export async function preRegisterHttp(preRegArgs) {
-  let payload = {
-    gender: preRegArgs.gender,
-    initials: preRegArgs.initials.trim(),
-    age: preRegArgs.age,
-    preferredLanguage: preRegArgs.preferredLanguage.trim(),
-    goingForPhlebotomy: preRegArgs.goingForPhlebotomy,
-  }
-  if (!payload.initials) {
-    return { result: false, error: 'Initials are required' }
-  }
-  try {
-    const res = await apiPost('/api/pre-register', payload)
-    if (!res.result) {
-      return { result: false, error: res.error || 'Failed to create patient' }
-    }
-    return { result: true, data: res.data }
-  } catch (e) {
-    return { result: false, error: e?.message || String(e) }
-  }
-
-}
-
-
-// export async function submitForm(args, patientId, formCollection) {
-//   try {
-//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-//     const patientsRecord = mongoConnection.db('phs').collection('patients')
-//     const registrationForms = mongoConnection.db('phs').collection(formCollection)
-//     const record2 = await patientsRecord.findOne({ queueNo: patientId })
-
-//     let qNum = 0
-
-//     let gender = args.registrationQ5
-//     let initials = args.registrationQ2
-//     let age = args.registrationQ4
-//     let preferredLanguage = args.registrationQ14
-//     let goingForPhlebotomy = args.registrationQ15
-
-//     let data = {
-//       gender: gender,
-//       initials: initials,
-//       age: age,
-//       preferredLanguage: preferredLanguage,
-//       goingForPhlebotomy: goingForPhlebotomy,
-//     }
-
-//     console.log('patient id: ' + record2)
-
-//     if (record2 == null) {
-//       qNum = await mongoDB.currentUser.functions.getNextQueueNo()
-//       await patientsRecord.insertOne({ queueNo: qNum, ...data })
-//       patientId = qNum
-//     }
-
-//     const record = await patientsRecord.findOne({ queueNo: patientId })
-
-//     if (record) {
-//       if (record[formCollection] === undefined) {
-//         // first time form is filled, create document for form
-//         await patientsRecord.updateOne(
-//           { queueNo: patientId },
-//           { $set: { [formCollection]: patientId } },
-//         )
-
-//         await registrationForms.insertOne({ _id: patientId, ...args })
-
-//         await updateAllStationCounts(patientId)
-
-//         return { result: true, data: data, qNum: patientId }
-//       } else {
-//         if (await isAdmin()) {
-//           args.lastEdited = new Date()
-//           args.lastEditedBy = getName()
-//           await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
-//           if (formCollection == 'registrationForm') {
-//             await patientsRecord.updateOne(
-//               { queueNo: patientId },
-//               { $set: { initials: args.registrationQ2 } },
-//             )
-//             await patientsRecord.updateOne(
-//               { queueNo: patientId },
-//               { $set: { age: args.registrationQ4 } },
-//             )
-//           }
-//           await updateAllStationCounts(patientId)
-//           // replace form
-//           // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
-//           // throw error message
-//           // const errorMsg = "This form has already been submitted. If you need to make "
-//           //         + "any changes, please contact the admin."
-//           return { result: true, data: data, qNum: patientId }
-//         } else {
-//           const errorMsg =
-//             'This form has already been submitted. If you need to make ' +
-//             'any changes, please contact the admin.'
-//           return { result: false, error: errorMsg }
-//         }
-//       }
-//     } else {
-//       // TODO: throw error, not possible that no document is found
-//       // unless malicious user tries to change link to directly access reg page
-//       // Can check in every form page if there is valid patientId instead
-//       // cannot use useEffect since the form component is class component
-//       const errorMsg = 'An error has occurred.'
-//       console.log('There is an error here')
-//       // You will be directed to the registration page." logic not done
-//       return { result: false, error: errorMsg }
-//     }
-//   } catch (err) {
-//     return { result: false, error: err }
-//   }
-// }
-
 export async function submitForm(args, patientId, formCollection) {
   try {
-    // If no patient yet, create a patient first (derive minimal fields from registration form)
-    let effectiveId = patientId
-    if (effectiveId === -1 || effectiveId == null) {
-      const payload = {
-        gender: args.registrationQ5,
-        initials: (args.registrationQ2 || '').trim(),
-        age: Number(args.registrationQ4 ?? 0),
-        preferredLanguage: (args.registrationQ14 || '').trim(),
-        goingForPhlebotomy: args.registrationQ15 ?? 'No',
-      }
-      const created = await apiPost('/patients', payload)
-      if (!created?.result) return { result: false, error: 'Failed to create patient' }
-      effectiveId = created.data.queueNo
+    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+    const patientsRecord = mongoConnection.db('phs').collection('patients')
+    const registrationForms = mongoConnection.db('phs').collection(formCollection)
+    const record2 = await patientsRecord.findOne({ queueNo: patientId })
+
+    let qNum = 0
+
+    let gender = args.registrationQ5
+    let initials = args.registrationQ2
+    let age = args.registrationQ4
+    let preferredLanguage = args.registrationQ14
+    let goingForPhlebotomy = args.registrationQ15
+
+    let data = {
+      gender: gender,
+      initials: initials,
+      age: age,
+      preferredLanguage: preferredLanguage,
+      goingForPhlebotomy: goingForPhlebotomy,
     }
 
-    // Upsert form data
-    const upsert = await apiPost(`/forms/${encodeURIComponent(formCollection)}/${encodeURIComponent(effectiveId)}`, {
-      data: args,
-    })
-    if (!upsert?.result) return { result: false, error: 'Failed to save form' }
+    console.log('patient id: ' + record2)
 
-    // Return same shape your caller expects
-    return {
-      result: true,
-      data: { ...args, patientId: effectiveId },
-      qNum: effectiveId,
+    if (record2 == null) {
+      qNum = await mongoDB.currentUser.functions.getNextQueueNo()
+      await patientsRecord.insertOne({ queueNo: qNum, ...data })
+      patientId = qNum
+    }
+
+    const record = await patientsRecord.findOne({ queueNo: patientId })
+
+    if (record) {
+      // Adds a key-value pair for each form submitted for the first time to the patient's document in the patients collection
+      // in MongoDB to track which forms have been successfully submitted
+      if (record[formCollection] === undefined) {
+        await patientsRecord.updateOne(
+          { queueNo: patientId },
+          { $set: { [formCollection]: patientId } },
+        )
+
+        await registrationForms.insertOne({ _id: patientId, ...args })
+
+        await updateAllStationCounts(patientId)
+
+        await updateGeriGraceEligibility(args, patientId, formCollection)
+
+        return { result: true, data: data, qNum: patientId }
+      } else {
+        if (await isAdmin()) {
+          args.lastEdited = new Date()
+          args.lastEditedBy = getName()
+          await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
+          if (formCollection == 'registrationForm') {
+            await patientsRecord.updateOne(
+              { queueNo: patientId },
+              { $set: { initials: args.registrationQ2 } },
+            )
+            await patientsRecord.updateOne(
+              { queueNo: patientId },
+              { $set: { age: args.registrationQ4 } },
+            )
+          }
+          await updateAllStationCounts(patientId)
+          await updateGeriGraceEligibility(args, patientId, formCollection, patientsRecord)
+          // replace form
+          // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
+          // throw error message
+          // const errorMsg = "This form has already been submitted. If you need to make "
+          //         + "any changes, please contact the admin."
+          return { result: true, data: data, qNum: patientId }
+        } else {
+          const errorMsg =
+            'This form has already been submitted. If you need to make ' +
+            'any changes, please contact the admin.'
+          return { result: false, error: errorMsg }
+        }
+      }
+    } else {
+      // TODO: throw error, not possible that no document is found
+      // unless malicious user tries to change link to directly access reg page
+      // Can check in every form page if there is valid patientId instead
+      // cannot use useEffect since the form component is class component
+      const errorMsg = 'An error has occurred.'
+      console.log('There is an error here')
+      // You will be directed to the registration page." logic not done
+      return { result: false, error: errorMsg }
     }
   } catch (err) {
-    return { result: false, error: err?.message || String(err) }
+    return { result: false, error: err }
   }
 }
-
-// export async function submitFormSpecial(args, patientId, formCollection) {
-//   try {
-//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-//     const patientsRecord = mongoConnection.db('phs').collection('patients')
-//     const record = await patientsRecord.findOne({ queueNo: patientId })
-//     if (record) {
-//       const registrationForms = mongoConnection.db('phs').collection(formCollection)
-//       if (record[formCollection] === undefined) {
-//         // first time form is filled, create document for form
-//         await patientsRecord.updateOne(
-//           { queueNo: patientId },
-//           { $set: { [formCollection]: patientId } },
-//         )
-//         await registrationForms.insertOne({ _id: patientId, ...args })
-//         await updateAllStationCounts(patientId)
-//         return { result: true }
-//       } else {
-//         args.lastEdited = new Date()
-//         args.lastEditedBy = getName()
-//         await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
-//         await updateAllStationCounts(patientId)
-
-//         return { result: true }
-//       }
-//     } else {
-//       const errorMsg = 'An error has occurred.'
-//       return { result: false, error: errorMsg }
-//     }
-//   } catch (err) {
-//     return { result: false, error: err }
-//   }
-// }
 
 export async function submitFormSpecial(args, patientId, formCollection) {
   try {
-    if (!formCollection) return { result: false, error: 'Form collection is required.' }
-    if (!Number.isInteger(patientId) || patientId <= 0 || !patientId) {
-      return { result: false, error: 'Invalid patient ID.' }
-    }
+    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+    const patientsRecord = mongoConnection.db('phs').collection('patients')
+    const record = await patientsRecord.findOne({ queueNo: patientId })
+    if (record) {
+      const registrationForms = mongoConnection.db('phs').collection(formCollection)
+      if (record[formCollection] === undefined) {
+        // first time form is filled, create document for form
+        await patientsRecord.updateOne(
+          { queueNo: patientId },
+          { $set: { [formCollection]: patientId } },
+        )
+        await registrationForms.insertOne({ _id: patientId, ...args })
+        await updateAllStationCounts(patientId)
+        return { result: true }
+      } else {
+        args.lastEdited = new Date()
+        args.lastEditedBy = getName()
+        await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
+        await updateAllStationCounts(patientId)
 
-    const payload = {
-      ...args,
-      lastEdited: new Date(),
-    }
-    const res = await apiPost(`/forms/${encodeURIComponent(formCollection)}/${patientId}`,
-    {
-      data: payload
-    });
-    if (!res.result) {
-      return { result: false, error: res.error || 'Update Failed' }
-    }
-    return {result: true}
-  } catch (e) {
-    return { result: false, error: e.message || String(e) }
-  }
-}
-
-// export async function submitPreRegForm(args, patientId, formCollection) {
-//   try {
-//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-//     const patientsRecord = mongoConnection.db('phs').collection(formCollection)
-//     const record = await patientsRecord.findOne({ queueNo: patientId })
-//     if (record) {
-//       if (await isAdmin()) {
-//         args.lastEdited = new Date()
-//         args.lastEditedBy = getName()
-//         await patientsRecord.updateOne({ queueNo: patientId }, { $set: { ...args } })
-//         return { result: true, data: args }
-//       } else {
-//         const errorMsg =
-//           'This form has already been submitted. If you need to make ' +
-//           'any changes, please contact the admin.'
-//         return { result: false, error: errorMsg }
-//       }
-//     } else {
-//       const errorMsg = 'An error has occurred.'
-//       return { result: false, error: errorMsg }
-//     }
-//   } catch (e) {
-//     return { result: false, error: e }
-//   }
-// }
-
-export async function submitPreRegForm(args, patientId, formCollection = 'registrationForm') {
-  try {
-    let pid = Number.isInteger(patientId) && patientId > 0 ? patientId : null
-
-    // If no patient yet, create one (same fields used by /api/patients)
-    if (!pid) {
-      const createRes = await apiPost('/patients', {
-        gender: args.registrationQ5,
-        initials: (args.registrationQ2 || '').trim(),
-        age: args.registrationQ4,
-        preferredLanguage: args.registrationQ14,
-        goingForPhlebotomy: args.registrationQ15
-      })
-      if (!createRes.result) {
-        return { result: false, error: createRes.error || 'Failed to create patient' }
+        return { result: true }
       }
-      pid = createRes.data.queueNo
+    } else {
+      const errorMsg = 'An error has occurred.'
+      return { result: false, error: errorMsg }
     }
+  } catch (err) {
+    return { result: false, error: err }
+  }
+}
 
-    const formRes = await apiPost(
-      `/forms/${encodeURIComponent(formCollection)}/${pid}`,
-      { data: args }
-    )
-    if (!formRes.result) {
-      return { result: false, error: formRes.error || 'Form upsert failed' }
-    }
-
-    await updateAllStationCounts(pid)
-
-    return {
-      result: true,
-      data: {
-        patientId: pid,
-        initials: args.registrationQ2,
-        age: args.registrationQ4
-      },
-      qNum: pid
+export async function submitPreRegForm(args, patientId, formCollection) {
+  try {
+    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+    const patientsRecord = mongoConnection.db('phs').collection(formCollection)
+    const record = await patientsRecord.findOne({ queueNo: patientId })
+    if (record) {
+      if (await isAdmin()) {
+        args.lastEdited = new Date()
+        args.lastEditedBy = getName()
+        await patientsRecord.updateOne({ queueNo: patientId }, { $set: { ...args } })
+        return { result: true, data: args }
+      } else {
+        const errorMsg =
+          'This form has already been submitted. If you need to make ' +
+          'any changes, please contact the admin.'
+        return { result: false, error: errorMsg }
+      }
+    } else {
+      const errorMsg = 'An error has occurred.'
+      return { result: false, error: errorMsg }
     }
   } catch (e) {
-    return { result: false, error: e.message || String(e) }
+    return { result: false, error: e }
   }
-}
-
-// Provides general information about the kinds of forms that are supported
-export async function getFormInfo() {
-  try {
-    var response = await axios.get(`/api/forms/info`)
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: true, data: response.data.data }
-}
-
-// retrieve completion status of all forms. green for completed, red for not complete, and amber for incomplete
-export async function getFormStatus(userID) {
-  userID = parseInt(userID)
-  if (Number.isNaN(userID)) {
-    return { result: false, error: 'User ID cannot be undefined.' }
-  }
-  try {
-    var response = await axios.get(`/api/users/${userID}/status`)
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: true, data: response.data }
-}
-
-// retrieve specific form data
-export async function getIndividualFormData(userID, form) {
-  userID = parseInt(userID)
-  if (Number.isNaN(userID)) {
-    return { result: false, error: 'User ID cannot be undefined.' }
-  }
-  // TODO: use getFormInfo() to validate form name
-  try {
-    var response = await axios.get(`/api/users/${userID}/forms/${form}`)
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: true, data: response.data }
-}
-
-// retrieve all form data
-export async function getAllFormData(userID) {
-  userID = parseInt(userID)
-  if (Number.isNaN(userID)) {
-    return { result: false, error: 'User ID cannot be undefined.' }
-  }
-  try {
-    var response = await axios.get(`/api/users/${userID}/forms`)
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: true, data: response.data }
-}
-
-// update or insert (upsert) data for a specified form
-export async function upsertIndividualFormData(userID, form_name, form_data) {
-  userID = parseInt(userID)
-  if (Number.isNaN(userID)) {
-    return { result: false, error: 'User ID cannot be undefined.' }
-  }
-  // TODO: use getFormInfo() to validate form name.
-  try {
-    var response = await axios.post(`/api/users/${userID}/forms/${form_name}`, {
-      form_data: JSON.stringify(form_data),
-    })
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: true, data: response.data }
 }
 
 // Calcuates the BMI
@@ -663,7 +488,7 @@ export function patient(doc, reg, patients, k) {
   const salutation =
     typeof reg.registrationQ1 == 'undefined' ? parseFromLangKey('salutation') : reg.registrationQ1
 
-  doc.addImage(logo, 'PNG', 10, 10, 77.8, 26.7)
+  doc.addImage(updatedLogo, 'PNG', 10, 10, 77.8, 26.7)
   k = k + 3
 
   doc.setFont(undefined, 'bold')
@@ -1223,7 +1048,7 @@ export const regexPasswordPattern =
 // console.log('done')
 // deletes volunteer accounts
 // console.log(await mongoDBConnection.collection("profiles").deleteMany({is_admin:{$eq : undefined}}))
-pdfMake.vfs = pdfFonts.vfs
+
 export function generate_pdf_updated(
   reg,
   patients,
@@ -1249,19 +1074,26 @@ export function generate_pdf_updated(
   geriOtConsult,
   mental,
   social,
+  podiatry,
+  mammobus,
+  hpv,
 ) {
+  console.log('TRIAGE', triage)
+  setLangUpdated(reg.registrationQ14)
   let content = []
 
   content.push(...patientSection(reg, patients))
+  content.push(...temperatureSection(triage))
   content.push(...bloodPressureSection(triage))
-  content.push(...bmiSection(triage.triageQ10, triage.triageQ11))
-  content.push(...otherScreeningModularitiesSection(lung, geriVision, social))
+  content.push(...bmiSection(triage.triageQ10, triage.triageQ11, triage.triageQ12))
+  content.push(...otherScreeningModularitiesSection(reg, geriVision, podiatry, vaccine))
   //content.push({ text: '', pageBreak: 'before' })
   content.push(
     ...followUpSection(
       reg,
       vaccine,
       hsg,
+      lung,
       phlebotomy,
       fit,
       wce,
@@ -1270,9 +1102,14 @@ export function generate_pdf_updated(
       hearts,
       oralHealth,
       mental,
+      mammobus,
+      hpv,
+      socialService,
     ),
   )
-  content.push(...memoSection(geriAudiometry, dietitiansConsult, geriPtConsult, geriOtConsult))
+  content.push(
+    ...memoSection(geriAudiometry, dietitiansConsult, geriPtConsult, geriOtConsult, doctorSConsult),
+  )
   content.push(...recommendationSection())
 
   let fileName = 'Report.pdf'
@@ -1280,52 +1117,145 @@ export function generate_pdf_updated(
     fileName = patients.initials.split(' ').join('_') + '_Report.pdf'
   }
 
-  const docDefinition = {
+  pdfMake.fonts = {
+    // download default Roboto font from cdnjs.com
+    Roboto: {
+      normal:
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf',
+      bold: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Medium.ttf',
+      italics:
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Italic.ttf',
+      bolditalics:
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-MediumItalic.ttf',
+    },
+
+    NotoTamil: {
+      normal: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansTamil-Regular.ttf',
+      bold: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansTamil-Bold.ttf',
+      italics: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansTamil-Regular.ttf',
+      bolditalics:
+        'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansTamil-Regular.ttf',
+    },
+
+    // example of usage fonts in collection
+    PingFangSC: {
+      normal: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansSC-Regular.ttf',
+      bold: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansSC-Bold.ttf',
+      italics: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansSC-Regular.ttf',
+      bolditalics: 'https://cdn.jsdelivr.net/gh/choijiwonsoc/my-fonts@main/NotoSansSC-Regular.ttf',
+    },
+  }
+
+  const docDefinition1 = {
     content: content,
     styles: {
       header: {
+        font:
+          reg.registrationQ14.toLowerCase() === 'tamil'
+            ? 'NotoTamil'
+            : reg.registrationQ14.toLowerCase() === 'mandarin'
+              ? 'PingFangSC'
+              : 'Roboto',
         fontSize: 16,
         bold: true,
         margin: [0, 10, 0, 5],
       },
       subheader: {
+        font:
+          reg.registrationQ14.toLowerCase() === 'tamil'
+            ? 'NotoTamil'
+            : reg.registrationQ14.toLowerCase() === 'mandarin'
+              ? 'PingFangSC'
+              : 'Roboto',
         fontSize: 13,
         bold: true,
         margin: [0, 3, 0, 3],
       },
       normal: {
+        font:
+          reg.registrationQ14.toLowerCase() === 'tamil'
+            ? 'NotoTamil'
+            : reg.registrationQ14.toLowerCase() === 'mandarin'
+              ? 'PingFangSC'
+              : 'Roboto',
         fontSize: 10,
         margin: [0, 0, 0, 4],
       },
       italicSmall: {
+        font:
+          reg.registrationQ14.toLowerCase() === 'tamil'
+            ? 'NotoTamil'
+            : reg.registrationQ14.toLowerCase() === 'mandarin'
+              ? 'PingFangSC'
+              : 'Roboto',
         italics: true,
         fontSize: 10,
       },
     },
     defaultStyle: {
+      font:
+        reg.registrationQ14.toLowerCase() === 'tamil'
+          ? 'NotoTamil'
+          : reg.registrationQ14.toLowerCase() === 'mandarin'
+            ? 'PingFangSC'
+            : 'Roboto',
       fontSize: 11,
     },
     pageMargins: [40, 60, 40, 60],
   }
-  pdfMake.createPdf(docDefinition).download(fileName)
+
+  pdfMake.createPdf(docDefinition1).download(fileName)
 }
 
 function patientSection(reg, patients) {
   const salutation = reg.registrationQ1 || 'Dear'
 
   const mainLogo = {
-    image: logo,
-    width: 220,
+    image: updatedLogo,
+    width: 150,
   }
 
   const title = [{ text: parseFromLangKey('title'), style: 'header' }]
 
   const thanksNote = [
-    { text: `${parseFromLangKey('dear', salutation, patients.initials)}`, style: 'normal' },
+    { text: `${parseFromLangKey('dear', salutation, reg.registrationQ2)}`, style: 'normal' },
     { text: `${parseFromLangKey('intro')}`, style: 'normal' },
   ]
 
   return [mainLogo, ...title, ...thanksNote]
+}
+
+export function temperatureSection(triage) {
+  const textSection = [
+    { text: `${parseFromLangKey('temp_title')}`, style: 'subheader' },
+    {
+      text: `${parseFromLangKey('temp_reading')} ${triage.triageQ14} °C.\n`,
+      style: 'normal',
+    },
+    {
+      text: `${parseFromLangKey('temp_tip')}`,
+      style: 'normal',
+    },
+  ]
+
+  const imageSection = [
+    {
+      image: tempQR,
+      width: 60,
+      margin: [0, 0, 0, 5],
+    },
+  ]
+
+  return [
+    {
+      columns: [
+        { width: '*', stack: textSection },
+        { width: 'auto', stack: imageSection, alignment: 'right' },
+      ],
+      columnGap: 13,
+      margin: [0, 10, 0, 10],
+    },
+  ]
 }
 
 export function bloodPressureSection(triage) {
@@ -1365,7 +1295,7 @@ export function bloodPressureSection(triage) {
   ]
 }
 
-export function bmiSection(height, weight) {
+export function bmiSection(height, weight, bmiString) {
   const bmi = calculateBMI(Number(height), Number(weight))
 
   const imageSection = [
@@ -1374,19 +1304,19 @@ export function bmiSection(height, weight) {
       width: 60,
       margin: [0, 0, 0, 5],
     },
-    {
-      text: 'https://www.healthhub.sg/live-healthy/weight_putting_me_at_risk_of_health_problems',
-      style: 'italicSmall',
-      fontSize: 7,
-      color: 'blue',
-      link: 'https://www.healthhub.sg/live-healthy/weight_putting_me_at_risk_of_health_problems',
-    },
+    // {
+    //   text: 'https://www.healthhub.sg/live-healthy/weight_putting_me_at_risk_of_health_problems',
+    //   style: 'italicSmall',
+    //   fontSize: 7,
+    //   color: 'blue',
+    //   link: 'https://www.healthhub.sg/live-healthy/weight_putting_me_at_risk_of_health_problems',
+    // },
   ]
 
   return [
     { text: parseFromLangKey('bmi_title'), style: 'subheader' },
     {
-      text: parseFromLangKey('bmi_reading', height, weight, bmi.toString()),
+      text: parseFromLangKey('bmi_reading', height, weight, bmiString),
       style: 'normal',
     },
 
@@ -1422,109 +1352,76 @@ export function bmiSection(height, weight) {
   ]
 }
 
-export function otherScreeningModularitiesSection(lung, eye, social) {
-  let other_lung_smoking_text = ''
-
-  if (social.SOCIAL10) {
-    other_lung_smoking_text = parseFromLangKey('other_lung_smoking')
-  }
-
+export function otherScreeningModularitiesSection(reg, eye, podiatry, vaccine) {
   return [
     { text: parseFromLangKey('other_title'), style: 'subheader' },
-    { text: parseFromLangKey('other_lung'), style: 'normal' },
-
-    {
-      columns: [
-        {
-          style: 'tableExample',
-          margin: [0, 5, 0, 5],
-          table: {
-            widths: ['*', '*'],
-            body: [
-              [
-                {
-                  text: parseFromLangKey('other_lung_tbl_l_header'),
-                  style: 'tableHeader',
-                  bold: true,
-                  colSpan: 2, // <-- span across 2 columns
-                },
-                {},
-              ],
-              ['FVC (L)', `${lung.LUNG3}`],
-              ['FEV1 (L)', `${lung.LUNG4}`],
-              ['FVC (%pred)', `${lung.LUNG5}`],
-              ['FEV1 (%pred)', `${lung.LUNG6}`],
-              ['FEV1/FVC (%)', `${lung.LUNG7}`],
-            ],
-          },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => 'black',
-            vLineColor: () => 'black',
-          },
-        },
-        {
-          width: '*', // takes remaining space
-          text: '', // or you can add other content here or leave blank
-        },
-      ],
-    },
-
-    { text: `${other_lung_smoking_text}\n`, style: 'normal' },
-    { text: '', margin: [0, 5] },
-
     { text: `${parseFromLangKey('other_eye')}\n`, style: 'normal' },
-    {
-      columns: [
-        {
-          width: '70%',
-          style: 'tableExample',
-          margin: [0, 5, 0, 5],
-          table: {
-            widths: ['*', '*', '*'],
-            body: [
-              [
-                { text: '', style: 'tableHeader' },
-                {
-                  text: parseFromLangKey('other_eye_tbl_l_header'),
-                  style: 'tableHeader',
-                  bold: true,
+    ...(reg?.registrationQ4 >= 60
+      ? [
+          {
+            columns: [
+              {
+                width: '70%',
+                style: 'tableExample',
+                margin: [0, 5, 0, 5],
+                table: {
+                  widths: ['*', '*', '*'],
+                  body: [
+                    [
+                      { text: '', style: 'tableHeader' },
+                      {
+                        text: parseFromLangKey('other_eye_tbl_l_header'),
+                        style: 'tableHeader',
+                        bold: true,
+                      },
+                      {
+                        text: parseFromLangKey('other_eye_tbl_r_header'),
+                        style: 'tableHeader',
+                        bold: true,
+                      },
+                    ],
+                    [
+                      parseFromLangKey('other_eye_tbl_t_row'),
+                      `6/${eye.OphthalQ3}`,
+                      `6/${eye.OphthalQ4}`,
+                    ],
+                    [
+                      parseFromLangKey('other_eye_tbl_b_row'),
+                      `6/${eye.OphthalQ5}`,
+                      `6/${eye.OphthalQ6}`,
+                    ],
+                  ],
                 },
-                {
-                  text: parseFromLangKey('other_eye_tbl_r_header'),
-                  style: 'tableHeader',
-                  bold: true,
+                layout: {
+                  hLineWidth: () => 0.5,
+                  vLineWidth: () => 0.5,
+                  hLineColor: () => 'black',
+                  vLineColor: () => 'black',
                 },
-              ],
-              [
-                parseFromLangKey('other_eye_tbl_t_row'),
-                `6/${eye.geriVisionQ3}`,
-                `6/${eye.geriVisionQ4}`,
-              ],
-              [
-                parseFromLangKey('other_eye_tbl_b_row'),
-                `6/${eye.geriVisionQ5}`,
-                `6/${eye.geriVisionQ6}`,
-              ],
+              },
+              {
+                width: '*', // takes remaining space
+                text: '', // or you can add other content here or leave blank
+              },
             ],
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => 'black',
-            vLineColor: () => 'black',
-          },
-        },
-        {
-          width: '*', // takes remaining space
-          text: '', // or you can add other content here or leave blank
-        },
-      ],
-    },
+          { text: '', margin: [0, 5] },
+          { text: `${parseFromLangKey('other_eye_error')} ${eye.OphthalQ8}\n`, style: 'normal' },
+        ]
+      : []),
     { text: '', margin: [0, 5] },
-    { text: `${parseFromLangKey('other_eye_error')} ${eye.geriVisionQ8}\n`, style: 'normal' },
-    { text: '', margin: [0, 5] },
+    ...(podiatry?.podiatryQ1 === 'Yes'
+      ? [{ text: `${parseFromLangKey('podiatry_screening_true')}\n`, style: 'normal' }]
+      : []),
+    ...(vaccine?.VAX1 === 'Yes'
+      ? [{ text: `${parseFromLangKey('vaccine_1')}\n`, style: 'normal' }]
+      : []),
+    ...(vaccine?.VAX2 === 'Yes'
+      ? [{ text: `${parseFromLangKey('vaccine_2')}\n`, style: 'normal', margin: [20, 0, 0, 0] }]
+      : []),
+    ...(vaccine?.VAX3 === 'Yes'
+      ? [{ text: `${parseFromLangKey('vaccine_3')}\n`, style: 'normal', margin: [20, 0, 0, 20] }]
+      : []),
   ]
 }
 
@@ -1532,6 +1429,7 @@ export function followUpSection(
   reg,
   vaccine,
   hsg,
+  lung,
   phlebotomy,
   fit,
   wce,
@@ -1540,6 +1438,9 @@ export function followUpSection(
   geriWhForm,
   oral,
   mental,
+  mammobus,
+  hpv,
+  socialService,
 ) {
   let vaccineString = null
   if (vaccine.VAX1 == 'Yes') {
@@ -1551,27 +1452,19 @@ export function followUpSection(
     hsgString = `${parseFromLangKey('fw_hsg')}\n`
   }
 
-  let phlebotomyString = null
-  if (reg.registrationQ15 == 'Yes') {
-    phlebotomyString += `${parseFromLangKey('fw_phlebotomy')}\n`
-    phlebotomyString += `${parseFromLangKey('fw_phlebotomy_1', reg.registrationQ18)}\n`
+  let lungString = null
+  if (lung.LUNG2 == 'Yes') {
+    lungString = `${parseFromLangKey('fw_lung')}\n`
   }
 
-  let fitString = null
-  if (fit.fitQ2 == 'Yes') {
-    fitString = `${parseFromLangKey('fw_fit')}\n`
+  let mammobusString = null
+  if (mammobus.mammobusQ1 == 'Yes') {
+    mammobusString = `${parseFromLangKey('fw_mammobus')}\n`
   }
 
   let hpvString = null
-  if (wce.wceQ5 == 'Yes') {
-    hpvString += `${parseFromLangKey('fw_wce')}\n`
-    hpvString += `${parseFromLangKey('fw_wce_1')}\n`
-  }
-
-  let nkfString = null
-  if (nkf.NKF1 == 'Yes') {
-    nkfString += `${parseFromLangKey('fw_nkf', nkf.NKF2)}\n`
-    nkfString += `${parseFromLangKey('fw_nkf_1')}\n`
+  if (hpv.HPV1 == 'Yes') {
+    hpvString = `${parseFromLangKey('fw_hpv')}\n`
   }
 
   let mentalString = null
@@ -1589,6 +1482,11 @@ export function followUpSection(
     whisperString = `${parseFromLangKey('fw_wh')}\n`
   }
 
+  let aicString = null
+  if (socialService.socialServiceQ4 == 'Yes') {
+    aicString = `${parseFromLangKey('fw_aic')}\n`
+  }
+
   let oralString = null
   if (oral.DENT4 == 'Yes') {
     oralString = `${parseFromLangKey('fw_dent')}\n`
@@ -1597,27 +1495,32 @@ export function followUpSection(
   return [
     { text: parseFromLangKey('fw_title'), style: 'subheader' },
     { text: parseFromLangKey('fw_intro'), style: 'normal' },
-    ...(vaccineString ? [{ text: vaccineString, style: 'normal' }] : []),
+    //...(vaccineString ? [{ text: vaccineString, style: 'normal' }] : []),
     ...(hsgString ? [{ text: hsgString, style: 'normal' }] : []),
-    ...(phlebotomyString ? [{ text: phlebotomyString, style: 'normal' }] : []),
+    ...(lungString ? [{ text: lungString, style: 'normal' }] : []),
     ,
-    ...(fitString ? [{ text: fitString, style: 'normal' }] : []),
-    ...(hpvString ? [{ text: hpvString, style: 'normal' }] : []),
-    ...(nkfString ? [{ text: nkfString, style: 'normal' }] : []),
-    ...(mentalString ? [{ text: mentalString, style: 'normal' }] : []),
+    // ...(phlebotomyString ? [{ text: phlebotomyString, style: 'normal' }] : []),
+    // ...(fitString ? [{ text: fitString, style: 'normal' }] : []),
+    // ...(hpvString ? [{ text: hpvString, style: 'normal' }] : []),
+    // ...(nkfString ? [{ text: nkfString, style: 'normal' }] : []),
+
     ...(graceString ? [{ text: graceString, style: 'normal' }] : []),
-    ...(whisperString ? [{ text: whisperString, style: 'normal' }] : []),
     ...(oralString ? [{ text: oralString, style: 'normal' }] : []),
+    ...(aicString ? [{ text: aicString, style: 'normal' }] : []),
+    ...(mentalString ? [{ text: mentalString, style: 'normal' }] : []),
+    ...(mammobusString ? [{ text: mammobusString, style: 'normal' }] : []),
+    ...(hpvString ? [{ text: hpvString, style: 'normal' }] : []),
+    //...(whisperString ? [{ text: whisperString, style: 'normal' }] : []),
     { text: '', margin: [0, 5] },
     //{ text: parseFromLangKey('fw_empty'), style: 'normal' },
   ]
 }
 
-export function memoSection(audioData, dietData, ptData, otData) {
+export function memoSection(audioData, dietData, ptData, otData, doctorData) {
   let audio =
     parseFromLangKey('memo_audio') +
-    parseFromLangKey('memo_audio_1', audioData.geriAudiometryQ13) +
-    parseFromLangKey('memo_audio_2', audioData.geriAudiometryQ12)
+    parseFromLangKey('memo_audio_1', audioData.AudiometryQ12) +
+    parseFromLangKey('memo_audio_2', audioData.AudiometryQ13)
 
   let diet = parseFromLangKey('memo_diet') + `${dietData.dietitiansConsultQ4}`
   if (dietData.dietitiansConsultQ5) {
@@ -1630,6 +1533,7 @@ export function memoSection(audioData, dietData, ptData, otData) {
 
   const pt = parseFromLangKey('memo_pt') + `${ptData.geriPtConsultQ1}`
   const ot = parseFromLangKey('memo_ot') + `${otData.geriOtConsultQ1}`
+  const doctor = parseFromLangKey('memo_doctor') + `${doctorData.doctorSConsultQ3}`
 
   return [
     { text: parseFromLangKey('memo_title'), style: 'subheader' },
@@ -1637,10 +1541,11 @@ export function memoSection(audioData, dietData, ptData, otData) {
       table: {
         widths: ['*'],
         body: [
-          [{ text: audio, style: 'normal' }],
           [{ text: diet, style: 'normal' }],
           [{ text: pt, style: 'normal' }],
           [{ text: ot, style: 'normal' }],
+          [{ text: audio, style: 'normal' }],
+          [{ text: doctor, style: 'normal' }],
         ],
       },
       layout: {
