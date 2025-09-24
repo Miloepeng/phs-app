@@ -24,7 +24,6 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import dayjs from 'dayjs'
 
-
 const initialValues = {
   registrationQ1: 'Mr',
   registrationQ2: '',
@@ -63,13 +62,21 @@ const RegForm = () => {
       console.log('Patient ID: ' + patientId)
       const res = await getSavedData(patientId, formName)
 
-      // Calculate age if birthday exists in saved data
+      // Calculate age if birthday exists in saved data, otherwise use today
       if (res.registrationQ3) {
         const dayjsBirthday = dayjs(res.registrationQ3)
         setBirthday(dayjsBirthday)
         const calculatedAge = calculateAgeFromDayjs(dayjsBirthday)
         setPatientAge(calculatedAge)
+      } else {
+        // If no saved birthday, default to today
+        const today = dayjs()
+        setBirthday(today)
+        const calculatedAge = calculateAgeFromDayjs(today)
+        setPatientAge(calculatedAge)
+        res.registrationQ3 = today // Update the saved data object
       }
+
       setSavedData(res)
       isLoading(false)
     }
@@ -241,13 +248,24 @@ const RegForm = () => {
                   <DatePicker
                     label='registrationQ3'
                     value={birthday}
-                    format="DD/MM/YYYY"
+                    format='DD/MM/YYYY'
                     onChange={(newValue) => {
-                      setBirthday(newValue)
-                      setFieldValue('registrationQ3', newValue.toDate())
-                      const age = calculateAgeFromDayjs(newValue)
-                      setPatientAge(age)
-                      setFieldValue('registrationQ4', age)
+                      if (newValue && newValue.isValid()) {
+                        // Valid date selected
+                        setBirthday(newValue)
+                        setFieldValue('registrationQ3', newValue.toDate())
+                        const age = calculateAgeFromDayjs(newValue)
+                        setPatientAge(age)
+                        setFieldValue('registrationQ4', age)
+                      } else {
+                        // Invalid date - reset to today's date instead of null
+                        const today = dayjs()
+                        setBirthday(today)
+                        setFieldValue('registrationQ3', today.toDate())
+                        const age = calculateAgeFromDayjs(today)
+                        setPatientAge(age)
+                        setFieldValue('registrationQ4', age)
+                      }
                       formikProps.setFieldTouched('registrationQ3', true, true)
                       formikProps.validateField('registrationQ3')
                     }}
@@ -454,9 +472,9 @@ const RegForm = () => {
           </div>
 
           <Box mt={2} mb={2}>
-            <ErrorNotification 
+            <ErrorNotification
               show={submitCount > 0 && Object.keys(formikProps.errors || {}).length > 0}
-              message="Please fill in all required fields correctly."
+              message='Please fill in all required fields correctly.'
             />
             {loading || isSubmitting ? (
               <CircularProgress />
