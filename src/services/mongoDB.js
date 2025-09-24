@@ -176,15 +176,6 @@ export const getSavedData = async (patientId, collectionName) => {
   }
 }
 
-// export const getPreRegDataById = async (patientId, collectionName) => {
-//   const mongoConnection = app.currentUser.mongoClient('mongodb-atlas')
-//   const savedData = await mongoConnection
-//     .db('phs')
-//     .collection(collectionName)
-//     .findOne({ queueNo: patientId })
-//   return savedData === null ? {} : savedData
-// }
-
 export const getPreRegDataById = async (patientId, collectionName) => {
   try {
     const res = await apiGet(`/patients/${patientId}?collection=${encodeURIComponent(collectionName)}`)
@@ -203,6 +194,11 @@ export const getPreRegDataById = async (patientId, collectionName) => {
 //   return savedData === null ? {} : savedData
 // }
 
+/**
+ * TODO for 2026 Devs: THIS IS A KNOWN BUG.
+ * Searching for patients by name does not return the correct list/patients while volunteer is typing in the patient name
+ * High priority bug as volunteers find it easier to search by name than queue number
+ */
 export const getPreRegDataByName = async (initials, collection) => {
   if (!isLoggedin()) return {}
   try {
