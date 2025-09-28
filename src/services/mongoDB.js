@@ -1,5 +1,5 @@
 import * as Realm from 'realm-web'
-import { apiGet, apiPost } from '../apiClient'
+import { apiGet, apiPost, apiPatch, apiDelete } from '../apiClient'
 
 const REALM_APP_ID = import.meta.env.VITE_MONGO_KEY
 // contact developer for .env file for key
@@ -314,6 +314,54 @@ export const getDocPdfQueueCollection = () => {
   const mongoConnection = app.currentUser.mongoClient('mongodb-atlas')
   return mongoConnection.db('phs').collection('docPdfQueue')
 }
+
+// Get unprinted documents from docPdfQueue
+export const getUnprintedDocPdfQueue = async () => {
+  if (!isLoggedin()) return [];
+  try {
+    const response = await apiGet('/docPdfQueue');
+    return response.data || [];
+  } catch (error) {
+    console.error('Error fetching unprinted doc queue:', error);
+    return [];
+  }
+};
+
+// Get printed documents from docPdfQueue
+export const getPrintedDocPdfQueue = async () => {
+  if (!isLoggedin()) return [];
+  try {
+    const response = await apiGet('/docPdfQueue/printed');
+    return response.data || [];
+  } catch (error) {
+    console.error('Error fetching printed doc queue:', error);
+    return [];
+  }
+};
+
+// Mark document in docPdfQueue as printed
+export const markDocPdfAsPrinted = async (docId) => {
+  if (!isLoggedin()) return false;
+  try {
+    await apiPatch(`/docPdfQueue/${docId}`, {});
+    return true;
+  } catch (error) {
+    console.error('Error marking document as printed:', error);
+    return false;
+  }
+};
+
+// Delete document from docPdfQueue
+export const deleteDocPdfFromQueue = async (docId) => {
+  if (!isLoggedin()) return false;
+  try {
+    await apiDelete(`/docPdfQueue/${docId}`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting document from queue:', error);
+    return false;
+  }
+};
 
 export const getFormAPdfQueueCollection = () => {
   const mongoConnection = app.currentUser.mongoClient('mongodb-atlas')
