@@ -1,7 +1,6 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import mongoDB from '../services/mongoDB'
 import * as Yup from 'yup'
 import { Formik } from 'formik'
 import {
@@ -16,35 +15,55 @@ import {
 import { useState } from 'react'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { regexPasswordPattern as pattern } from '../api/api'
+import { LoginContext } from '../App.jsx'
 
 // TODO
 // Explore using hash function to store passwords on DB
 
 const Reset = () => {
   const navigate = useNavigate()
+  const profile = React.useContext(LoginContext)
   let location = useLocation()
   const [showPassword, setShowPassword] = useState(false)
   const handleClickShowPassword = () => setShowPassword(!showPassword)
   const handleMouseDownPassword = () => setShowPassword(!showPassword)
 
   const handleReset = async (values) => {
-    const urlParamToken = new URLSearchParams(location.search).get('token')
-    const urlParamTokenID = new URLSearchParams(location.search).get('tokenId')
-    const newPassword = values.password
-    // regex check
-
     if (!pattern.test(values.password)) {
-      alert(
-        'Password must contain at least one uppercase, one lowercase, one number and one special character and 12 characters long',
-      )
-    } else {
-      try {
-        await mongoDB.emailPasswordAuth.resetPassword(urlParamToken, urlParamTokenID, newPassword)
+      alert('Password must contain at least one uppercase, one lowercase, one number and one special character and 12 characters long')
+      return
+    }
+    // Must be logged in (JWT) – redirect if not
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      alert('Please login first.')
+      navigate('/login', { replace: true })
+      return
+    }
+    const storedProfile = profile || JSON.parse(localStorage.getItem('profile') || 'null')
+    const username = storedProfile?.username || storedProfile?.email
+    if (!username) {
+      alert('Cannot determine username. Re-login.')
+      return
+    }
+    try {
+      const res = await fetch('/api/resetPassword', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token
+        },
+        body: JSON.stringify({ username, newPassword: values.password }) // send plaintext; server hashes
+      })
+      const data = await res.json()
+      if (!data.result) {
+        alert('Reset failed: ' + (data.error || 'Unknown error'))
+      } else {
         alert('Password Reset')
         navigate('/login', { replace: true })
-      } catch (e) {
-        alert('Invalid Link! Contact Dev')
       }
+    } catch (e) {
+      alert('Server error resetting password')
     }
   }
 

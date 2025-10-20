@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Box, Typography, TextField, Button, InputAdornment, IconButton } from '@mui/material'
 import * as Yup from 'yup'
 import { Formik } from 'formik'
-import mongoDB, { hashPassword, isAdmin, profilesCollection } from '../services/mongoDB'
+import { hashPassword, isAdmin, profilesCollection } from '../services/mongoDB'
 import { Visibility, VisibilityOff, Search } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { regexPasswordPattern as pattern } from '../api/api'
@@ -27,11 +27,8 @@ const ManageVolunteers = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (await isAdmin()) {
-        const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-        const guestProfiles = await mongoConnection
-          .db('phs')
-          .collection('profiles')
-          .find({ is_admin: { $ne: true } })
+        const profiles = await profilesCollection('profiles')
+        const guestProfiles = await profiles.filter(p => !p.is_admin)
         setGuestUsers(guestProfiles)
       } else {
         alert('Only Admins have access to this Page!')
@@ -39,37 +36,24 @@ const ManageVolunteers = () => {
       }
     }
     fetchData()
-  }, [refresh])
+  }, [refresh, navigate])
 
   const handleCreateAccount = async (values) => {
-    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    const guestProfiles = mongoConnection.db('phs').collection('profiles')
     isLoading(true)
     try {
-      // ensure volunteer names are unique
-      const searchUnique = await guestProfiles.findOne({ username: values.email })
-
-      if (searchUnique === null) {
-        if (!pattern.test(values.password)) {
-          alert(
-            'Password must contain at least one uppercase, one lowercase, one number and one special character and 12 characters long',
-          )
-          isLoading(false)
-        } else {
-          const hashHex = await hashPassword(values.password)
-
-          await guestProfiles.insertOne({
-            username: values.email,
-            //email: values.email,
-            password: hashHex,
-          })
-
-          alert('Account Created: ' + values.email)
-          setRefresh(!refresh)
-          isLoading(false)
-        }
+      const res = await fetch('/api/handleSignup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: values.email, password: values.password }),
+      });
+      const data = await res.json();
+      if (!data.result) {
+        alert('Error Creating Account: ' + data.error)
       } else {
-        alert('Username ' + values.email + ' taken! Try another username!')
+        alert('Account Created: ' + values.email)
+        setRefresh(!refresh)
         isLoading(false)
       }
     } catch (e) {
@@ -101,7 +85,7 @@ const ManageVolunteers = () => {
           <div style={styles.manageVolunteersDetails}>
             <div>{guest.username}</div>
             <div>
-              Last Login: {guest.lastLogin ? guest.lastLogin.toString() : 'Has not Logged In'}
+              Last Login: {guest.last_login ? new Date(guest.last_login).toString() : 'Has not Logged In'}
             </div>
           </div>
 
@@ -137,22 +121,33 @@ const ManageVolunteers = () => {
   const deleteAccount = async (username) => {
     isLoadingDelete(true)
     try {
-      await profilesCollection()
-        .deleteOne({
-          username: username,
-        })
-        .then(() => {
-          setRefresh(!refresh)
-          isLoadingDelete(false)
-          alert('Account Successfully deleted: ' + username)
-        })
+      const res = await fetch('/api/deleteAccount', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + localStorage.getItem('authToken'),
+        },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!data.result) {
+        alert('Error Deleting Account: ' + data.error)
+      } else {
+        setRefresh(!refresh)
+        alert('Account Successfully deleted: ' + username)
+      }
     } catch (e) {
       alert('Error Deleting Account!: ' + e)
+    } finally {
       isLoadingDelete(false)
     }
   }
 
   const handleResetPassword = async () => {
+    if (!nameReset) {
+      alert('Select a name first!')
+      return
+    }
     if (resetPassword.length === 0) {
       alert('Password Cannot be Empty!')
       return
@@ -167,20 +162,24 @@ const ManageVolunteers = () => {
     isLoadingReset(true)
     const hashHex = await hashPassword(resetPassword)
     try {
-      await profilesCollection()
-        .updateOne(
-          {
-            username: nameReset,
-          },
-          { $set: { password: hashHex } },
-        )
-        .then(() => {
-          isLoadingReset(false)
-          setResetPassword('')
-          alert('password successfully reset for: ' + nameReset)
-        })
+      const res = await fetch('/api/resetPassword', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('authToken'),
+        },
+        body: JSON.stringify({ username: nameReset, newPassword: hashHex }),
+      });
+      const data = await res.json();
+      if (!data.result) {
+        alert('Error resetting password!: ' + data.error);
+      } else {
+        isLoadingReset(false);
+        setResetPassword('');
+        alert('Password successfully reset for: ' + nameReset);
+      }
     } catch (e) {
-      alert('Error resetting password!, No user selected!: ' + e)
+      alert('Error resetting password!: ' + e)
       isLoadingReset(false)
       setResetPassword('')
     }

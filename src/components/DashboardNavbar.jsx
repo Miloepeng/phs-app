@@ -6,26 +6,34 @@ import Logo from './Logo'
 import { useEffect, useState } from 'react'
 import { getName, getProfile, isLoggedin } from '../services/mongoDB'
 import { useNavigate } from 'react-router-dom'
-import React from 'react'
+import { LoginContext } from '../App.jsx'
+import React, { useContext } from 'react'
 
 const DashboardNavbar = ({ onMobileNavOpen, ...rest }) => {
+  const { profile, setProfile } = useContext(LoginContext)
   const navigate = useNavigate()
-  const notLoggedIn = () => {
-    navigate('/login', { replace: true })
-    alert('You are not logged In!')
-  }
-  const [admin, isAdmin] = useState(false)
-  const name = isLoggedin() ? getName() : notLoggedIn()
+  const [admin, setAdmin] = useState(false)
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      const profile = await getProfile()
-      if (profile !== null) {
-        isAdmin(profile.is_admin)
-      }
+    if (!isLoggedin()) {
+      navigate('/login', { replace: true });
+      return;
     }
-    fetchProfile();
-  }, [])
+    if (!profile) {
+      (async () => {
+        const p = await getProfile();
+        if (p) {
+          setProfile(p);
+          setAdmin(!!p.is_admin);
+          localStorage.setItem('profile', JSON.stringify(p));
+        }
+      })();
+    } else {
+      setAdmin(!!profile.is_admin);
+    }
+  }, [profile, navigate, setProfile]);
+
+  const name = profile ? getName(profile) : '';
 
   return (
     <AppBar elevation={0} {...rest}>

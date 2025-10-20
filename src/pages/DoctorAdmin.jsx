@@ -1,13 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Box,
-  Button,
-  CircularProgress,
-  Typography,
-  Paper,
-  Stack,
-} from '@mui/material'
-import { getProfile, getDocPdfQueueCollection } from '../services/mongoDB'
+import { Box, Button, CircularProgress, Typography, Paper, Stack } from '@mui/material'
+import { getProfile, getPrintedDocPdfQueue, getUnprintedDocPdfQueue, markDocPdfAsPrinted, deleteDocPdfFromQueue } from '../services/mongoDB'
 import { generateDoctorPdf } from '../api/api.jsx'
 
 const DoctorAdmin = () => {
@@ -28,19 +21,18 @@ const DoctorAdmin = () => {
         const isAdminUser = profile?.is_admin || false
         if (!isMounted) return
 
-        // set admin state
         setAdmin(isAdminUser)
         setCheckingAdmin(false)
 
         if (!isAdminUser) return
 
-        const collection = getDocPdfQueueCollection()
-        const unprinted = await collection.find({ printed: false })
-        const printed = await collection.find({ printed: true })
+        // Use the new separate functions
+        const unprinted = await getUnprintedDocPdfQueue()
+        const printed = await getPrintedDocPdfQueue()
 
         if (!isMounted) return
 
-        // sort by newest first
+        // Sort by newest first
         unprinted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         printed.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
@@ -54,7 +46,9 @@ const DoctorAdmin = () => {
     }
 
     fetchProfileAndQueue()
-    return () => { isMounted = false }
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // polling to refresh queue every 5sec while tab is visible
@@ -63,9 +57,8 @@ const DoctorAdmin = () => {
 
     const fetchQueue = async () => {
       try {
-        const collection = getDocPdfQueueCollection()
-        const unprinted = await collection.find({ printed: false })
-        const printed = await collection.find({ printed: true })
+        const unprinted = await getUnprintedDocPdfQueue()
+        const printed = await getPrintedDocPdfQueue()
 
         if (!isMounted) return
 
@@ -95,28 +88,26 @@ const DoctorAdmin = () => {
 
   const handlePrint = async (entry) => {
     await generateDoctorPdf(entry)
-    const collection = getDocPdfQueueCollection()
-    await collection.updateOne({ _id: entry._id }, { $set: { printed: true } })
+    await markDocPdfAsPrinted(entry._id)
     setRefresh((r) => !r)
   }
 
   const handleRemove = async (entry) => {
-    const collection = getDocPdfQueueCollection()
-    await collection.deleteOne({ _id: entry._id })
+    await deleteDocPdfFromQueue(entry._id)
     setRefresh((r) => !r)
   }
 
   if (checkingAdmin) return <CircularProgress />
 
-  if (!admin) return <Typography variant="h6">Access denied. Admins only.</Typography>
+  if (!admin) return <Typography variant='h6'>Access denied. Admins only.</Typography>
 
   return (
     <Box sx={{ padding: 4 }}>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant='h4' gutterBottom>
         Doctor PDF Print Queue
       </Typography>
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction='row' spacing={2} sx={{ mb: 2 }}>
         <Button
           variant={view === 'queue' ? 'contained' : 'outlined'}
           onClick={() => setView('queue')}
@@ -149,13 +140,13 @@ const DoctorAdmin = () => {
               }}
             >
               <Box>
-                <Typography variant="subtitle1">Patient ID: {entry.patientId}</Typography>
-                <Typography variant="body2">Doctor: {entry.doctorName}</Typography>
-                <Typography variant="body2">
+                <Typography variant='subtitle1'>Patient ID: {entry.patientId}</Typography>
+                <Typography variant='body2'>Doctor: {entry.doctorName}</Typography>
+                <Typography variant='body2'>
                   Created At: {new Date(entry.createdAt).toLocaleString()}
                 </Typography>
               </Box>
-              <Button variant="outlined" onClick={() => generateDoctorPdf(entry)}>
+              <Button variant='outlined' onClick={() => generateDoctorPdf(entry)}>
                 Reprint
               </Button>
             </Paper>
@@ -174,25 +165,17 @@ const DoctorAdmin = () => {
             }}
           >
             <Box>
-              <Typography variant="subtitle1">Patient ID: {entry.patientId}</Typography>
-              <Typography variant="body2">Doctor: {entry.doctorName}</Typography>
-              <Typography variant="body2">
+              <Typography variant='subtitle1'>Patient ID: {entry.patientId}</Typography>
+              <Typography variant='body2'>Doctor: {entry.doctorName}</Typography>
+              <Typography variant='body2'>
                 Created At: {new Date(entry.createdAt).toLocaleString()}
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => handlePrint(entry)}
-              >
+            <Stack direction='row' spacing={1}>
+              <Button variant='contained' color='primary' onClick={() => handlePrint(entry)}>
                 Print
               </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => handleRemove(entry)}
-              >
+              <Button variant='outlined' color='error' onClick={() => handleRemove(entry)}>
                 Remove
               </Button>
             </Stack>

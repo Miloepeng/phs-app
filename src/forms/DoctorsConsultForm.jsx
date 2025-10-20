@@ -3,18 +3,11 @@ import { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Yup from 'yup'
 
-import {
-  Button,
-  CircularProgress,
-  Divider,
-  Grid,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { Button, CircularProgress, Divider, Grid, Paper, Typography } from '@mui/material'
 
 import { submitForm } from '../api/api.jsx'
 import { FormContext } from '../api/utils.js'
-import { getDocPdfQueueCollection, getSavedData } from '../services/mongoDB.js'
+import { addToDocPdfQueue, getSavedData } from '../services/mongoDB.js'
 import './fieldPadding.css'
 import allForms from './forms.json'
 
@@ -132,7 +125,6 @@ const DoctorsConsultForm = () => {
         })
       }
       loadPastForms()
-
     }
     fetchData()
   }, [patientId])
@@ -144,13 +136,7 @@ const DoctorsConsultForm = () => {
 
       if (response.result) {
         if (values.doctorSConsultQ12 === 'Yes') {
-          const collection = getDocPdfQueueCollection()
-          await collection.insertOne({
-            patientId: patientId,
-            doctorName: values.doctorSConsultQ1, // Using doctor's name from Q1
-            printed: false,
-            createdAt: new Date(),
-          })
+          await addToDocPdfQueue(patientId, values.doctorSConsultQ1)
         }
 
         setTimeout(() => {
@@ -313,7 +299,7 @@ const DoctorsConsultForm = () => {
 
           <ErrorNotification
             show={Object.keys(errors).length > 0 && submitCount > 0}
-            message="Please correct the errors above before submitting."
+            message='Please correct the errors above before submitting.'
           />
 
           <div>
@@ -417,7 +403,10 @@ const DoctorsConsultForm = () => {
                   Type of vision error, if any: <strong>{ophthal.OphthalQ8}</strong>
                 </p>
                 <p>
-                  Previous eye surgery or condition: <strong>{ophthal.OphthalQ1}. {ophthal.OphthalQ2}</strong>
+                  Previous eye surgery or condition:{' '}
+                  <strong>
+                    {ophthal.OphthalQ1}. {ophthal.OphthalQ2}
+                  </strong>
                 </p>
                 <p>
                   Is currently on any eye review/ consulting any eye specialist:{' '}
@@ -428,7 +417,8 @@ const DoctorsConsultForm = () => {
                 </p>
                 {hcsr ? (
                   <p>
-                    Patient&apos;s history indication of hearing problems: <strong>{hcsr.hxHcsrQ3}</strong>
+                    Patient&apos;s history indication of hearing problems:{' '}
+                    <strong>{hcsr.hxHcsrQ3}</strong>
                   </p>
                 ) : (
                   <p className='red'>nil hcsr data!</p>

@@ -1,8 +1,5 @@
-import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import mongoDB, { hashPassword, profilesCollection } from '../services/mongoDB'
-import * as Realm from 'realm-web'
 import * as Yup from 'yup'
 import { Formik } from 'formik'
 import Link from '@mui/material/Link'
@@ -19,10 +16,11 @@ import {
 import { useContext, useState } from 'react'
 import { LoginContext } from '../App.jsx'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
+import { apiPost } from '../apiClient.js'
 
 const Login = () => {
   const navigate = useNavigate()
-  const [accountOptions, /*setAccountOptions*/] = useState(['Guest', 'Admin'])
+  const [accountOptions /*setAccountOptions*/] = useState(['Guest', 'Admin'])
   const [accountOption, setAccountOption] = useState('Guest')
   const { isLogin } = useContext(LoginContext)
   const { setProfile } = useContext(LoginContext)
@@ -32,107 +30,98 @@ const Login = () => {
   const handleClickShowPassword = () => setShowPassword(!showPassword)
   const handleMouseDownPassword = () => setShowPassword(!showPassword)
 
-
-  // we need to allow anonymous users to sign up(settle in mongoDB)
+  // sign up API version
   const handleSignUp = async (values) => {
     isLoading(true)
     try {
-      const email = values.email.trim().toLowerCase();
-      // Log in as anonymous user if not already logged in
-      if (!mongoDB.currentUser) {
-        const credentials = Realm.Credentials.anonymous();
-        await mongoDB.logIn(credentials);
-      }
-      const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas');
-      const guestProfiles = mongoConnection.db('phs').collection('profiles');
-      const searchUnique = await guestProfiles.findOne({ username: email });
-      if (searchUnique === null) {
-        if (values.password.length < 6) {
-          alert('Password must contain at least one six characters!');
-          isLoading(false);
-        } else {
-          const hashHex = await hashPassword(values.password);
-          await guestProfiles.insertOne({
-            username: email,
-            email: email,
-            password: hashHex,
-            is_admin: false,
-            lastLogin: null,
-          });
-          alert('Account Created: ' + email + '\nYou can now sign in.');
-          setTimeout(() => setIsSignUp(false), 1500);
-          isLoading(false);
-        }
+      const data = await apiPost('/handleSignup', {
+        email: values.email,
+        password: values.password,
+      })
+
+      if (data.result) {
+        alert('Account Created: ' + values.email + '\nYou can now sign in.')
+        setTimeout(() => setIsSignUp(false), 1)
       } else {
-        alert('Username ' + email + ' taken! Try another username!');
-        isLoading(false);
+        alert('Error: ' + data.error)
       }
     } catch (e) {
-      alert('Contact Developer: ' + e);
-      isLoading(false);
+      alert('Contact Developer: ' + e.message)
     }
+    isLoading(false)
   }
 
-
+  // login API version
   const handleLogin = async (values) => {
+    isLoading(true)
     try {
-      const email = values.email.trim().toLowerCase();
-      // fix uid?
-      isLoading(true)
+      let type = 'Guest'
       if (accountOption === accountOptions[1]) {
-        //admin
-        const credentials = Realm.Credentials.emailPassword(email, values.password)
-        //console.log("test")
-        // Authenticate the user
-        // eslint-disable-next-line
-        const user = await mongoDB.logIn(credentials)
-        const userProfile = profilesCollection()
-        const profile = await userProfile.findOne({ username: email })
-        setProfile(profile)
-        isLogin(true)
-      } else {
-        const hashHex = await hashPassword(values.password)
-        const credentials = Realm.Credentials.function({
-          username: email,
-          password: hashHex,
-        })
-        // Authenticate the user
-        // eslint-disable-next-line
-        console.log(credentials)
-        const user = await mongoDB.logIn(credentials)
-        const userProfile = profilesCollection()
-        const profile = await userProfile.findOne({ username: email })
-        isLogin(true)
-        setProfile(profile)
+        type = 'Admin'
       }
-      const userProfile = profilesCollection()
-      await userProfile.updateOne(
-        {
-          username: email,
-        },
-        { $set: { lastLogin: new Date() } },
-      )
-      isLoading(false)
-      navigate('/app/registration', { replace: true })
-    } catch (err) {
-      isLoading(false)
-      alert('Invalid Username or Password!')
+
+      const data = await apiPost('/handleLogin', {
+        email: values.email,
+        password: values.password,
+        type: type,
+      })
+
+      if (data.result) {
+        if (data.token) {
+          localStorage.setItem('authToken', data.token)
+        }
+        alert('Login successful!')
+        localStorage.setItem('profile', JSON.stringify(data.user))
+        setProfile(data.user)
+        isLogin(true)
+        navigate('/app/registration', { replace: true })
+      } else {
+        alert(data.error || 'Invalid username or password!')
+      }
+    } catch (e) {
+      alert('Login error: ' + e.message + ' Invalid username or password!')
     }
     isLoading(false)
   }
 
   const handleReset = async (values) => {
-    const email = values.email
+    // const email = values.email
+    // try {
+    //   await mongoDB.emailPasswordAuth.sendResetPasswordEmail(email)
+    //   alert('Email sent to your account!')
+    // } catch (e) {
+    //   alert('Invalid Email!')
+    // }
+    alert('Password reset is not implemented yet.')
+  }
+
+  const connectionTest = async () => {
     try {
-      await mongoDB.emailPasswordAuth.sendResetPasswordEmail(email)
-      alert('Email sent to your account!')
+      const res = await fetch('/api/test-mongo')
+      const data = await res.json()
+      if (data.result) {
+        console.log('MongoDB Test:', data.message, data.collections)
+        alert('MongoDB connection successful!')
+      } else {
+        console.error('MongoDB Test Failed:', data.error)
+        alert('MongoDB connection failed!')
+      }
     } catch (e) {
-      alert('Invalid Email!')
+      console.error('MongoDB Test Error:', e)
+      alert('MongoDB test error!')
     }
   }
 
   return (
-     <>
+    <>
+      <Button
+        variant='outlined'
+        color='secondary'
+        onClick={connectionTest}
+        style={{ marginTop: 16 }}
+      >
+        Test MongoDB Connection
+      </Button>
       <Helmet>
         <title>{isSignUp ? 'Sign up' : 'Login'}</title>
       </Helmet>
@@ -175,14 +164,7 @@ const Login = () => {
               }
             }}
           >
-            {({
-              errors,
-              handleBlur,
-              handleChange,
-              handleSubmit,
-              touched,
-              values,
-            }) => (
+            {({ errors, handleBlur, handleChange, handleSubmit, touched, values }) => (
               <form onSubmit={handleSubmit}>
                 <Box sx={{ mb: 3 }}>
                   <Typography color='textPrimary' variant='h2'>
@@ -274,11 +256,13 @@ const Login = () => {
                   >
                     {loading ? (
                       <>
-                        <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                        <CircularProgress size={24} color='inherit' sx={{ mr: 1 }} />
                         {isSignUp ? 'Signing up...' : 'Logging in...'}
                       </>
+                    ) : isSignUp ? (
+                      'Sign up'
                     ) : (
-                      isSignUp ? 'Sign up' : 'Sign in now'
+                      'Sign in now'
                     )}
                   </Button>
                 </Box>
@@ -298,28 +282,18 @@ const Login = () => {
                     Reset Password
                   </Button>
                 )}
-                
                 {/* Toggle between Sign In and Sign Up */}
                 <Box sx={{ textAlign: 'center', mt: 2 }}>
                   {!isSignUp ? (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => setIsSignUp(true)}
-                    >
+                    <Link component='button' variant='body2' onClick={() => setIsSignUp(true)}>
                       Don&apos;t have an account? Sign up here.
                     </Link>
                   ) : (
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => setIsSignUp(false)}
-                    >
+                    <Link component='button' variant='body2' onClick={() => setIsSignUp(false)}>
                       Already have an account? Sign in here.
                     </Link>
                   )}
                 </Box>
-                
               </form>
             )}
           </Formik>

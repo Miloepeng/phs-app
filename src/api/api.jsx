@@ -5,7 +5,6 @@ import mongoDB, { getName, isAdmin } from '../services/mongoDB'
 import { bloodpressureQR, bmiQR, tempQR } from 'src/icons/QRCodes'
 import updatedLogo from 'src/icons/UpdatedIcon'
 
-//import 'jspdf-autotable'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { updateAllStationCounts } from '../services/stationCounts'
@@ -19,6 +18,8 @@ import { checkedBox, uncheckedBox } from '../icons/checked'
 import pic1 from '../icons/pic1-forma'
 import pic2 from '../icons/pic2-forma'
 import { getEligibilityRows } from '../services/stationCounts'
+
+import { apiPost } from '../apiClient.js'
 
 pdfMake.vfs = pdfFonts.vfs
 
@@ -37,180 +38,194 @@ pdfMake.fonts = {
   },
 }
 
-export async function preRegister(preRegArgs) {
-  let gender = preRegArgs.gender
-  let initials = preRegArgs.initials.trim()
-  let age = preRegArgs.age
-  let preferredLanguage = preRegArgs.preferredLanguage.trim()
-  let goingForPhlebotomy = preRegArgs.goingForPhlebotomy
-  // validate params
-  if (
-    gender == null ||
-    initials == null ||
-    age == null ||
-    preferredLanguage == null ||
-    goingForPhlebotomy == null
-  ) {
-    return { result: false, error: 'Function Arguments canot be undefined.' }
-  }
-  if (
-    typeof goingForPhlebotomy === 'string' &&
-    goingForPhlebotomy !== 'Y' &&
-    goingForPhlebotomy !== 'N'
-  ) {
-    return { result: false, error: 'The value of goingForPhlebotomy must either be "T" or "F"' }
-  }
-  // TODO: more exhaustive error handling. consider abstracting it in a validation function, and using schema validation
-  let data = {
-    gender: gender,
-    initials: initials,
-    age: age,
-    preferredLanguage: preferredLanguage,
-    goingForPhlebotomy: goingForPhlebotomy,
-  }
-  let isSuccess = false
-  let errorMsg = ''
-  try {
-    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    const patientsRecord = mongoConnection.db('phs').collection('patients')
-    const qNum = await mongoDB.currentUser.functions.getNextQueueNo()
-    await patientsRecord.insertOne({ queueNo: qNum, ...data })
-    data = { patientId: qNum, ...data }
-    isSuccess = true
-  } catch (err) {
-    // TODO: more granular error handling
-    return { result: false, error: err }
-  }
-  return { result: isSuccess, data: data, error: errorMsg }
-}
+// export async function preRegister(preRegArgs) {
+//   let gender = preRegArgs.gender
+//   let initials = preRegArgs.initials.trim()
+//   let age = preRegArgs.age
+//   let preferredLanguage = preRegArgs.preferredLanguage.trim()
+//   let goingForPhlebotomy = preRegArgs.goingForPhlebotomy
+//   // validate params
+//   if (
+//     gender == null ||
+//     initials == null ||
+//     age == null ||
+//     preferredLanguage == null ||
+//     goingForPhlebotomy == null
+//   ) {
+//     return { result: false, error: 'Function Arguments canot be undefined.' }
+//   }
+//   if (
+//     typeof goingForPhlebotomy === 'string' &&
+//     goingForPhlebotomy !== 'Y' &&
+//     goingForPhlebotomy !== 'N'
+//   ) {
+//     return { result: false, error: 'The value of goingForPhlebotomy must either be "T" or "F"' }
+//   }
+//   // TODO: more exhaustive error handling. consider abstracting it in a validation function, and using schema validation
+//   let data = {
+//     gender: gender,
+//     initials: initials,
+//     age: age,
+//     preferredLanguage: preferredLanguage,
+//     goingForPhlebotomy: goingForPhlebotomy,
+//   }
+//   let isSuccess = false
+//   let errorMsg = ''
+//   try {
+//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+//     const patientsRecord = mongoConnection.db('phs').collection('patients')
+//     const qNum = await mongoDB.currentUser.functions.getNextQueueNo()
+//     await patientsRecord.insertOne({ queueNo: qNum, ...data })
+//     data = { patientId: qNum, ...data }
+//     isSuccess = true
+//   } catch (err) {
+//     // TODO: more granular error handling
+//     return { result: false, error: err }
+//   }
+//   return { result: isSuccess, data: data, error: errorMsg }
+// }
+
+// export async function submitForm(args, patientId, formCollection) {
+//   try {
+//     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
+//     const patientsRecord = mongoConnection.db('phs').collection('patients')
+//     const registrationForms = mongoConnection.db('phs').collection(formCollection)
+//     const record2 = await patientsRecord.findOne({ queueNo: patientId })
+
+//     let qNum = 0
+
+//     let gender = args.registrationQ5
+//     let initials = args.registrationQ2
+//     let age = args.registrationQ4
+//     let preferredLanguage = args.registrationQ14
+//     let goingForPhlebotomy = args.registrationQ15
+
+//     let data = {
+//       gender: gender,
+//       initials: initials,
+//       age: age,
+//       preferredLanguage: preferredLanguage,
+//       goingForPhlebotomy: goingForPhlebotomy,
+//     }
+
+//     console.log('patient id: ' + record2)
+
+//     if (record2 == null) {
+//       qNum = await mongoDB.currentUser.functions.getNextQueueNo()
+//       await patientsRecord.insertOne({ queueNo: qNum, ...data })
+//       patientId = qNum
+//     }
+
+//     const record = await patientsRecord.findOne({ queueNo: patientId })
+
+//     if (record) {
+//       // Adds a key-value pair for each form submitted for the first time to the patient's document in the patients collection
+//       // in MongoDB to track which forms have been successfully submitted
+//       if (record[formCollection] === undefined) {
+//         await patientsRecord.updateOne(
+//           { queueNo: patientId },
+//           { $set: { [formCollection]: patientId } },
+//         )
+
+//         await registrationForms.insertOne({ _id: patientId, ...args })
+
+//         await updateAllStationCounts(patientId)
+
+//         await updateGeriGraceEligibility(args, patientId, formCollection)
+
+//         return { result: true, data: data, qNum: patientId }
+//       } else {
+//         if (await isAdmin()) {
+//           args.lastEdited = new Date()
+//           args.lastEditedBy = getName()
+//           await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
+//           if (formCollection == 'registrationForm') {
+//             await patientsRecord.updateOne(
+//               { queueNo: patientId },
+//               { $set: { initials: args.registrationQ2 } },
+//             )
+//             await patientsRecord.updateOne(
+//               { queueNo: patientId },
+//               { $set: { age: args.registrationQ4 } },
+//             )
+//           }
+//           await updateAllStationCounts(patientId)
+//           await updateGeriGraceEligibility(args, patientId, formCollection, patientsRecord)
+//           // replace form
+//           // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
+//           // throw error message
+//           // const errorMsg = "This form has already been submitted. If you need to make "
+//           //         + "any changes, please contact the admin."
+//           return { result: true, data: data, qNum: patientId }
+//         } else {
+//           const errorMsg =
+//             'This form has already been submitted. If you need to make ' +
+//             'any changes, please contact the admin.'
+//           return { result: false, error: errorMsg }
+//         }
+//       }
+//     } else {
+//       // TODO: throw error, not possible that no document is found
+//       // unless malicious user tries to change link to directly access reg page
+//       // Can check in every form page if there is valid patientId instead
+//       // cannot use useEffect since the form component is class component
+//       const errorMsg = 'An error has occurred.'
+//       console.log('There is an error here')
+//       // You will be directed to the registration page." logic not done
+//       return { result: false, error: errorMsg }
+//     }
+//   } catch (err) {
+//     return { result: false, error: err }
+//   }
+// }
 
 export async function submitForm(args, patientId, formCollection) {
   try {
-    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    const patientsRecord = mongoConnection.db('phs').collection('patients')
-    const registrationForms = mongoConnection.db('phs').collection(formCollection)
-    const record2 = await patientsRecord.findOne({ queueNo: patientId })
+    // Registers the patient in the patients collection if they do not exist yet
+    let effectiveId = patientId
+    let patientData = {}
 
-    let qNum = 0
-
-    let gender = args.registrationQ5
-    let initials = args.registrationQ2
-    let age = args.registrationQ4
-    let preferredLanguage = args.registrationQ14
-    let goingForPhlebotomy = args.registrationQ15
-
-    let data = {
-      gender: gender,
-      initials: initials,
-      age: age,
-      preferredLanguage: preferredLanguage,
-      goingForPhlebotomy: goingForPhlebotomy,
-    }
-
-    console.log('patient id: ' + record2)
-
-    if (record2 == null) {
-      qNum = await mongoDB.currentUser.functions.getNextQueueNo()
-      await patientsRecord.insertOne({ queueNo: qNum, ...data })
-      patientId = qNum
-    }
-
-    const record = await patientsRecord.findOne({ queueNo: patientId })
-
-    if (record) {
-      // Adds a key-value pair for each form submitted for the first time to the patient's document in the patients collection
-      // in MongoDB to track which forms have been successfully submitted
-      if (record[formCollection] === undefined) {
-        await patientsRecord.updateOne(
-          { queueNo: patientId },
-          { $set: { [formCollection]: patientId } },
-        )
-
-        await registrationForms.insertOne({ _id: patientId, ...args })
-
-        await updateAllStationCounts(patientId)
-
-        await updateGeriGraceEligibility(args, patientId, formCollection)
-
-        return { result: true, data: data, qNum: patientId }
-      } else {
-        if (await isAdmin()) {
-          args.lastEdited = new Date()
-          args.lastEditedBy = getName()
-          await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
-          if (formCollection == 'registrationForm') {
-            await patientsRecord.updateOne(
-              { queueNo: patientId },
-              { $set: { initials: args.registrationQ2 } },
-            )
-            await patientsRecord.updateOne(
-              { queueNo: patientId },
-              { $set: { age: args.registrationQ4 } },
-            )
-          }
-          await updateAllStationCounts(patientId)
-          await updateGeriGraceEligibility(args, patientId, formCollection, patientsRecord)
-          // replace form
-          // registrationForms.findOneAndReplace({_id: record[formCollection]}, args);
-          // throw error message
-          // const errorMsg = "This form has already been submitted. If you need to make "
-          //         + "any changes, please contact the admin."
-          return { result: true, data: data, qNum: patientId }
-        } else {
-          const errorMsg =
-            'This form has already been submitted. If you need to make ' +
-            'any changes, please contact the admin.'
-          return { result: false, error: errorMsg }
-        }
+    if (effectiveId === -1 || effectiveId == null) {
+      const payload = {
+        gender: args.registrationQ5,
+        initials: (args.registrationQ2 || '').trim(),
+        age: Number(args.registrationQ4 ?? 0),
+        preferredLanguage: (args.registrationQ14 || '').trim(),
       }
+      const created = await apiPost('/patients', payload)
+      if (!created?.result) return { result: false, error: 'Failed to create patient' }
+      effectiveId = created.data.queueNo
+      patientData = payload
     } else {
-      // TODO: throw error, not possible that no document is found
-      // unless malicious user tries to change link to directly access reg page
-      // Can check in every form page if there is valid patientId instead
-      // cannot use useEffect since the form component is class component
-      const errorMsg = 'An error has occurred.'
-      console.log('There is an error here')
-      // You will be directed to the registration page." logic not done
-      return { result: false, error: errorMsg }
+      patientData = {
+        gender: args.registrationQ5,
+        initials: args.registrationQ2,
+        age: args.registrationQ4,
+        preferredLanguage: args.registrationQ14,
+      }
+    }
+
+    // Upsert form data
+    const upsert = await apiPost(
+      `/forms/${encodeURIComponent(formCollection)}/${encodeURIComponent(effectiveId)}`,
+      {
+        data: args,
+      },
+    )
+    if (!upsert?.result) return { result: false, error: 'Failed to save form' }
+
+    // Return same shape expected by frontend logic
+    return {
+      result: true,
+      data: patientData,
+      qNum: effectiveId,
     }
   } catch (err) {
-    return { result: false, error: err }
+    return { result: false, error: err.message || String(err) }
   }
 }
 
-export async function submitFormSpecial(args, patientId, formCollection) {
-  try {
-    const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    const patientsRecord = mongoConnection.db('phs').collection('patients')
-    const record = await patientsRecord.findOne({ queueNo: patientId })
-    if (record) {
-      const registrationForms = mongoConnection.db('phs').collection(formCollection)
-      if (record[formCollection] === undefined) {
-        // first time form is filled, create document for form
-        await patientsRecord.updateOne(
-          { queueNo: patientId },
-          { $set: { [formCollection]: patientId } },
-        )
-        await registrationForms.insertOne({ _id: patientId, ...args })
-        await updateAllStationCounts(patientId)
-        return { result: true }
-      } else {
-        args.lastEdited = new Date()
-        args.lastEditedBy = getName()
-        await registrationForms.updateOne({ _id: patientId }, { $set: { ...args } })
-        await updateAllStationCounts(patientId)
-
-        return { result: true }
-      }
-    } else {
-      const errorMsg = 'An error has occurred.'
-      return { result: false, error: errorMsg }
-    }
-  } catch (err) {
-    return { result: false, error: err }
-  }
-}
-
+// UNUSED IN 2025, not sure what is the purpose of this
 export async function submitPreRegForm(args, patientId, formCollection) {
   try {
     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')

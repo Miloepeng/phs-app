@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react'
+import { Box, Button, CircularProgress, Typography, Paper, Stack } from '@mui/material'
 import {
-  Box,
-  Button,
-  CircularProgress,
-  Typography,
-  Paper,
-  Stack,
-} from '@mui/material'
-import { getProfile, getFormAPdfQueueCollection } from '../services/mongoDB.js'
+  getProfile,
+  getUnprintedFormAPdfQueue,
+  getPrintedFormAPdfQueue,
+  markFormAAsPrinted,
+  deleteFormAFromQueue,
+} from '../services/mongoDB.js'
 import { generateFormAPdf } from '../api/api.jsx'
 
 const FormAAdmin = () => {
@@ -34,9 +33,8 @@ const FormAAdmin = () => {
 
         if (!isAdminUser) return
 
-        const collection = getFormAPdfQueueCollection()
-        const unprinted = await collection.find({ printed: false })
-        const printed = await collection.find({ printed: true })
+        const unprinted = await getUnprintedFormAPdfQueue()
+        const printed = await getPrintedFormAPdfQueue()
 
         if (!isMounted) return
 
@@ -54,7 +52,9 @@ const FormAAdmin = () => {
     }
 
     fetchProfileAndQueue()
-    return () => { isMounted = false }
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // polling to refresh queue every 5sec while tab is visible
@@ -63,9 +63,8 @@ const FormAAdmin = () => {
 
     const fetchQueue = async () => {
       try {
-        const collection = getFormAPdfQueueCollection()
-        const unprinted = await collection.find({ printed: false })
-        const printed = await collection.find({ printed: true })
+        const unprinted = await getUnprintedFormAPdfQueue()
+        const printed = await getPrintedFormAPdfQueue()
 
         if (!isMounted) return
 
@@ -95,28 +94,27 @@ const FormAAdmin = () => {
 
   const handlePrint = async (entry) => {
     await generateFormAPdf(entry.patientId)
-    const collection = getFormAPdfQueueCollection()
-    await collection.updateOne({ _id: entry._id }, { $set: { printed: true } })
+    await markFormAAsPrinted(entry._id)
     setRefresh((r) => !r)
   }
 
+  // Update the handleRemove function:
   const handleRemove = async (entry) => {
-    const collection = getFormAPdfQueueCollection()
-    await collection.deleteOne({ _id: entry._id })
+    await deleteFormAFromQueue(entry._id)
     setRefresh((r) => !r)
   }
 
   if (checkingAdmin) return <CircularProgress />
 
-  if (!admin) return <Typography variant="h6">Access denied. Admins only.</Typography>
+  if (!admin) return <Typography variant='h6'>Access denied. Admins only.</Typography>
 
   return (
     <Box sx={{ padding: 4 }}>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant='h4' gutterBottom>
         Form A PDF Print Queue
       </Typography>
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction='row' spacing={2} sx={{ mb: 2 }}>
         <Button
           variant={view === 'queue' ? 'contained' : 'outlined'}
           onClick={() => setView('queue')}
@@ -149,12 +147,12 @@ const FormAAdmin = () => {
               }}
             >
               <Box>
-                <Typography variant="subtitle1">Patient ID: {entry.patientId}</Typography>
-                <Typography variant="body2">
+                <Typography variant='subtitle1'>Patient ID: {entry.patientId}</Typography>
+                <Typography variant='body2'>
                   Created At: {new Date(entry.createdAt).toLocaleString()}
                 </Typography>
               </Box>
-              <Button variant="outlined" onClick={() => generateFormAPdf(entry.patientId)}>
+              <Button variant='outlined' onClick={() => generateFormAPdf(entry.patientId)}>
                 Reprint
               </Button>
             </Paper>
@@ -173,24 +171,16 @@ const FormAAdmin = () => {
             }}
           >
             <Box>
-              <Typography variant="subtitle1">Patient ID: {entry.patientId}</Typography>
-              <Typography variant="body2">
+              <Typography variant='subtitle1'>Patient ID: {entry.patientId}</Typography>
+              <Typography variant='body2'>
                 Created At: {new Date(entry.createdAt).toLocaleString()}
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => handlePrint(entry)}
-              >
+            <Stack direction='row' spacing={1}>
+              <Button variant='contained' color='primary' onClick={() => handlePrint(entry)}>
                 Print
               </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => handleRemove(entry)}
-              >
+              <Button variant='outlined' color='error' onClick={() => handleRemove(entry)}>
                 Remove
               </Button>
             </Stack>
