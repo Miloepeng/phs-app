@@ -95,33 +95,8 @@ const Login = () => {
     alert('Password reset is not implemented yet.')
   }
 
-  const connectionTest = async () => {
-    try {
-      const res = await fetch('/api/test-mongo')
-      const data = await res.json()
-      if (data.result) {
-        console.log('MongoDB Test:', data.message, data.collections)
-        alert('MongoDB connection successful!')
-      } else {
-        console.error('MongoDB Test Failed:', data.error)
-        alert('MongoDB connection failed!')
-      }
-    } catch (e) {
-      console.error('MongoDB Test Error:', e)
-      alert('MongoDB test error!')
-    }
-  }
-
   return (
     <>
-      <Button
-        variant='outlined'
-        color='secondary'
-        onClick={connectionTest}
-        style={{ marginTop: 16 }}
-      >
-        Test MongoDB Connection
-      </Button>
       <Helmet>
         <title>{isSignUp ? 'Sign up' : 'Login'}</title>
       </Helmet>
