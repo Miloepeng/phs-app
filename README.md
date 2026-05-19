@@ -17,6 +17,8 @@ src/api/authApi.js       # Login, signup, account deletion, password reset
 src/api/formsApi.js      # Patient form reads and submissions
 src/api/patientsApi.js   # Patient creation, lookup, names, and search
 src/api/stationsApi.js   # Patient station completion status and eligibility
+src/reports/doctorPdf.js # Doctor consult PDF generation
+src/reports/pdfMake.js   # Shared pdfMake setup
 src/services/stationParity.js # Dev-only backend/frontend eligibility comparison helper
 ```
 
@@ -35,6 +37,8 @@ For new frontend work:
 - `src/services/stationCounts.js` still exposes compatibility helpers. `updateAllStationCounts` now prefers backend eligibility and falls back to local rules.
 
 Stage 7D keeps backend eligibility as parity-in-progress. Frontend fallbacks remain in place, and mismatch logging is diagnostic only; do not remove local eligibility logic until representative patient timelines have been checked without mismatches.
+
+Stage 8 starts extracting report/PDF responsibilities from `src/api/api.jsx`. `generateDoctorPdf` now lives in `src/reports/doctorPdf.js`, with `src/api/api.jsx` re-exporting it as a compatibility facade so existing callers keep working.
 
 ## Past Versions
 
