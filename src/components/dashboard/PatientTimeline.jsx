@@ -12,7 +12,7 @@ import { ScrollTopContext } from '../../api/utils.js'
 import CircularProgress from '@mui/material/CircularProgress'
 import { Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
 import { getPatient } from 'src/api/patientsApi'
-import { getPatientStationStatus } from 'src/api/stationsApi'
+import { getPatientStationEligibility, getPatientStationStatus } from 'src/api/stationsApi'
 
 // Timeline item configuration - add/delete stations here (comment out)
 const timelineItems = [
@@ -211,6 +211,15 @@ const BasicTimeline = (props) => {
         try {
           const res = await getPatientStationStatus(props.patientId)
           status = res.data
+          try {
+            const eligibilityRes = await getPatientStationEligibility(props.patientId)
+            status = {
+              ...status,
+              eligibleStations: eligibilityRes.data?.eligibleStations || status.eligibleStations,
+            }
+          } catch {
+            // Keep backend completion status even if backend eligibility is unavailable.
+          }
         } catch {
           status = await loadLocalStatusFallback()
         }
