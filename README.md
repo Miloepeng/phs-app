@@ -18,6 +18,9 @@ src/api/formsApi.js      # Patient form reads and submissions
 src/api/patientsApi.js   # Patient creation, lookup, names, and search
 src/api/stationsApi.js   # Patient station completion status and eligibility
 src/reports/doctorPdf.js # Doctor consult PDF generation
+src/reports/formAPdf.js  # Form A PDF generation
+src/reports/patientReportPdf.js # Legacy patient report PDF generation
+src/reports/patientReportPdfUpdated.js # Current patient report PDF generation
 src/reports/pdfMake.js   # Shared pdfMake setup
 src/services/stationParity.js # Dev-only backend/frontend eligibility comparison helper
 ```
@@ -39,6 +42,12 @@ For new frontend work:
 Stage 7D keeps backend eligibility as parity-in-progress. Frontend fallbacks remain in place, and mismatch logging is diagnostic only; do not remove local eligibility logic until representative patient timelines have been checked without mismatches.
 
 Stage 8 starts extracting report/PDF responsibilities from `src/api/api.jsx`. `generateDoctorPdf` now lives in `src/reports/doctorPdf.js`, with `src/api/api.jsx` re-exporting it as a compatibility facade so existing callers keep working.
+
+Stage 9 continues that report extraction. `generateFormAPdf` and its private Form A rendering helpers now live in `src/reports/formAPdf.js`, with `src/api/api.jsx` re-exporting it as a compatibility facade for existing callers.
+
+Stage 10A moves the legacy `generate_pdf` jsPDF report and its direct rendering helpers into `src/reports/patientReportPdf.js`. `src/api/api.jsx` continues to re-export those helpers as a compatibility facade for existing callers.
+
+Stage 10B moves `generate_pdf_updated` and its direct pdfMake section helpers into `src/reports/patientReportPdfUpdated.js`. `src/api/api.jsx` continues to re-export those helpers as a compatibility facade for existing callers.
 
 ## Past Versions
 
