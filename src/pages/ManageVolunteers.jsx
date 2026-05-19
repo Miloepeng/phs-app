@@ -6,6 +6,7 @@ import { hashPassword, isAdmin, profilesCollection } from '../services/mongoDB'
 import { Visibility, VisibilityOff, Search } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { regexPasswordPattern as pattern } from '../api/api'
+import { deleteAccount as deleteAccountRequest, resetPassword as resetPasswordRequest, signup } from '../api/authApi'
 
 const ManageVolunteers = () => {
   const navigate = useNavigate()
@@ -41,23 +42,16 @@ const ManageVolunteers = () => {
   const handleCreateAccount = async (values) => {
     isLoading(true)
     try {
-      const res = await fetch('/api/handleSignup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: values.email, password: values.password }),
-      });
-      const data = await res.json();
+      const data = await signup(values.email, values.password)
       if (!data.result) {
         alert('Error Creating Account: ' + data.error)
       } else {
         alert('Account Created: ' + values.email)
         setRefresh(!refresh)
-        isLoading(false)
       }
     } catch (e) {
       alert('Contact Developer: ' + e)
+    } finally {
       isLoading(false)
     }
   }
@@ -121,15 +115,7 @@ const ManageVolunteers = () => {
   const deleteAccount = async (username) => {
     isLoadingDelete(true)
     try {
-      const res = await fetch('/api/deleteAccount', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + localStorage.getItem('authToken'),
-        },
-        body: JSON.stringify({ username }),
-      });
-      const data = await res.json();
+      const data = await deleteAccountRequest(username)
       if (!data.result) {
         alert('Error Deleting Account: ' + data.error)
       } else {
@@ -162,15 +148,7 @@ const ManageVolunteers = () => {
     isLoadingReset(true)
     const hashHex = await hashPassword(resetPassword)
     try {
-      const res = await fetch('/api/resetPassword', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + localStorage.getItem('authToken'),
-        },
-        body: JSON.stringify({ username: nameReset, newPassword: hashHex }),
-      });
-      const data = await res.json();
+      const data = await resetPasswordRequest(nameReset, hashHex)
       if (!data.result) {
         alert('Error resetting password!: ' + data.error);
       } else {

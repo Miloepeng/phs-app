@@ -16,6 +16,7 @@ import { useState } from 'react'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { regexPasswordPattern as pattern } from '../api/api'
 import { LoginContext } from '../App.jsx'
+import { resetPassword } from '../api/authApi'
 
 // TODO
 // Explore using hash function to store passwords on DB
@@ -47,15 +48,7 @@ const Reset = () => {
       return
     }
     try {
-      const res = await fetch('/api/resetPassword', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token
-        },
-        body: JSON.stringify({ username, newPassword: values.password }) // send plaintext; server hashes
-      })
-      const data = await res.json()
+      const data = await resetPassword(username, values.password)
       if (!data.result) {
         alert('Reset failed: ' + (data.error || 'Unknown error'))
       } else {

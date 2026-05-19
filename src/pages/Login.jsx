@@ -16,7 +16,7 @@ import {
 import { useContext, useState } from 'react'
 import { LoginContext } from '../App.jsx'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
-import { apiPost } from '../apiClient.js'
+import { login, signup } from '../api/authApi'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -34,10 +34,7 @@ const Login = () => {
   const handleSignUp = async (values) => {
     isLoading(true)
     try {
-      const data = await apiPost('/handleSignup', {
-        email: values.email,
-        password: values.password,
-      })
+      const data = await signup(values.email, values.password)
 
       if (data.result) {
         alert('Account Created: ' + values.email + '\nYou can now sign in.')
@@ -60,11 +57,7 @@ const Login = () => {
         type = 'Admin'
       }
 
-      const data = await apiPost('/handleLogin', {
-        email: values.email,
-        password: values.password,
-        type: type,
-      })
+      const data = await login(values.email, values.password, type)
 
       if (data.result) {
         if (data.token) {

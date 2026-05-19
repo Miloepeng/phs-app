@@ -1,5 +1,8 @@
 import * as Realm from 'realm-web'
 import { apiGet, apiPost, apiPatch, apiDelete } from '../apiClient'
+import { getPatient, getPatientNames, searchPatientsByInitials } from '../api/patientsApi'
+import { getPatientForm } from '../api/formsApi'
+import { hasFormKey, toFormKey } from '../forms/formKeys'
 
 const REALM_APP_ID = import.meta.env.VITE_MONGO_KEY
 // contact developer for .env file for key
@@ -150,6 +153,10 @@ export const isAdmin = async (email) => {
 
 export const getAllPatientNames = async (collectionName) => {
   try {
+    if (collectionName === 'patients') {
+      const res = await getPatientNames()
+      return res.data || []
+    }
     const res = await apiGet(`/patientNames?collection=${encodeURIComponent(collectionName)}`)
     return res.data || []
   } catch {
@@ -167,6 +174,10 @@ export const getAllPatientNames = async (collectionName) => {
 
 export const getSavedData = async (patientId, collectionName) => {
   try {
+    if (hasFormKey(collectionName)) {
+      const res = await getPatientForm(patientId, toFormKey(collectionName))
+      return res.data || {}
+    }
     const res = await apiGet(
       `/savedData?patientId=${encodeURIComponent(patientId)}&collectionName=${encodeURIComponent(collectionName)}`
     )
@@ -178,6 +189,14 @@ export const getSavedData = async (patientId, collectionName) => {
 
 export const getPreRegDataById = async (patientId, collectionName) => {
   try {
+    if (collectionName === 'patients') {
+      const res = await getPatient(patientId)
+      return res.data || {}
+    }
+    if (hasFormKey(collectionName)) {
+      const res = await getPatientForm(patientId, toFormKey(collectionName))
+      return res.data || {}
+    }
     const res = await apiGet(`/patients/${patientId}?collection=${encodeURIComponent(collectionName)}`)
     return res.data || {}
   } catch {
@@ -202,6 +221,10 @@ export const getPreRegDataById = async (patientId, collectionName) => {
 export const getPreRegDataByName = async (initials, collection) => {
   if (!isLoggedin()) return {}
   try {
+    if (collection === 'patients') {
+      const res = await searchPatientsByInitials(initials)
+      return res.data || {}
+    }
     const res = await apiGet(
       `/patients/by-initials/${encodeURIComponent(initials)}?collection=${encodeURIComponent(collection)}`
     )
@@ -222,6 +245,14 @@ export const getPreRegDataByName = async (initials, collection) => {
 
 export const getSavedPatientData = async (patientId, collectionName) => {
   try {
+    if (collectionName === 'patients') {
+      const res = await getPatient(patientId)
+      return res.data || {}
+    }
+    if (hasFormKey(collectionName)) {
+      const res = await getPatientForm(patientId, toFormKey(collectionName))
+      return res.data || {}
+    }
     const res = await apiGet(
       `/patientSavedData?patientId=${encodeURIComponent(patientId)}&collectionName=${encodeURIComponent(collectionName)}`
     )

@@ -19,7 +19,9 @@ import pic1 from '../icons/pic1-forma'
 import pic2 from '../icons/pic2-forma'
 import { getEligibilityRows } from '../services/stationCounts'
 
-import { apiPost } from '../apiClient.js'
+import { createPatient } from './patientsApi'
+import { submitPatientForm } from './formsApi'
+import { toFormKey } from '../forms/formKeys'
 
 pdfMake.vfs = pdfFonts.vfs
 
@@ -192,7 +194,7 @@ export async function submitForm(args, patientId, formCollection) {
         age: Number(args.registrationQ4 ?? 0),
         preferredLanguage: (args.registrationQ14 || '').trim(),
       }
-      const created = await apiPost('/patients', payload)
+      const created = await createPatient(payload)
       if (!created?.result) return { result: false, error: 'Failed to create patient' }
       effectiveId = created.data.queueNo
       patientData = payload
@@ -206,12 +208,7 @@ export async function submitForm(args, patientId, formCollection) {
     }
 
     // Upsert form data
-    const upsert = await apiPost(
-      `/forms/${encodeURIComponent(formCollection)}/${encodeURIComponent(effectiveId)}`,
-      {
-        data: args,
-      },
-    )
+    const upsert = await submitPatientForm(effectiveId, toFormKey(formCollection), args)
     if (!upsert?.result) return { result: false, error: 'Failed to save form' }
 
     // Return same shape expected by frontend logic

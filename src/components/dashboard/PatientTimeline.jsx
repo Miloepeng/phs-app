@@ -11,8 +11,7 @@ import { isAdmin } from '../../services/mongoDB'
 import { ScrollTopContext } from '../../api/utils.js'
 import CircularProgress from '@mui/material/CircularProgress'
 import { Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
-import { apiGet } from 'src/apiClient'
-import PodiatryForm from 'src/forms/PodiatryForm'
+import { getPatient } from 'src/api/patientsApi'
 
 // Timeline item configuration - add/delete stations here (comment out)
 const timelineItems = [
@@ -202,7 +201,7 @@ const BasicTimeline = (props) => {
     // }
     const createFormsStatus = async () => {
     try {
-      const res = await apiGet(`/patients/${props.patientId}?collection=patients`)
+      const res = await getPatient(props.patientId)
       const record = res.data
       setFormDone(generateStatusObject(record))
       setLoading(false)
