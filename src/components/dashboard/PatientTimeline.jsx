@@ -222,7 +222,12 @@ const BasicTimeline = (props) => {
               compareStationEligibility(props.patientId)
                 .then((comparison) => {
                   if (!comparison.matches) {
-                    console.warn('Station eligibility mismatch', comparison.differences)
+                    console.warn('Station eligibility mismatch', {
+                      patientId: comparison.patientId,
+                      differences: comparison.differences,
+                      frontendEligibleStations: comparison.frontendEligibleStations,
+                      backendEligibleStations: comparison.backendEligibleStations,
+                    })
                   }
                 })
                 .catch(() => {})

@@ -50,6 +50,12 @@ function compareRows(frontendRows, backendRows) {
     .filter((row) => row.frontend !== row.backend)
 }
 
+function summarizeRows(rows) {
+  return rows
+    .filter((row) => row.eligibility === 'YES')
+    .map((row) => row.name)
+}
+
 export async function compareStationEligibility(patientId) {
   const [frontendRows, backend] = await Promise.all([
     getFrontendEligibilityRows(patientId),
@@ -59,9 +65,12 @@ export async function compareStationEligibility(patientId) {
   const differences = compareRows(frontendRows, backendRows)
 
   return {
+    patientId,
     matches: differences.length === 0,
     frontendRows,
     backendRows,
+    frontendEligibleStations: summarizeRows(frontendRows),
+    backendEligibleStations: summarizeRows(backendRows),
     differences,
   }
 }

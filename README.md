@@ -28,11 +28,13 @@ For new frontend work:
 
 - Use `patientsApi`, `formsApi`, and `authApi` instead of direct `fetch('/api/...')`.
 - Use `stationsApi.getPatientStationStatus` for dashboard completion status and `stationsApi.getPatientStationEligibility` for backend eligibility. The current timeline keeps local fallbacks while backend parity is being validated.
-- In development, the dashboard logs station eligibility mismatches found by `stationParity.js`.
+- In development, the dashboard logs station eligibility mismatches found by `stationParity.js`, including the patient ID, per-station differences, and each side's eligible station list.
 - Avoid passing MongoDB collection names from UI components when a domain key is available.
 - Add new form collection-to-key mappings in `src/forms/formKeys.js`.
 - Keep `services/mongoDB.js` compatibility behavior until old callers have been migrated.
 - `src/services/stationCounts.js` still exposes compatibility helpers. `updateAllStationCounts` now prefers backend eligibility and falls back to local rules.
+
+Stage 7D keeps backend eligibility as parity-in-progress. Frontend fallbacks remain in place, and mismatch logging is diagnostic only; do not remove local eligibility logic until representative patient timelines have been checked without mismatches.
 
 ## Past Versions
 
