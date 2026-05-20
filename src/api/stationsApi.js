@@ -1,9 +1,21 @@
-import { apiGet } from '../apiClient'
+import { apiGet, apiPost } from '../apiClient'
+
+export function getStations() {
+  return apiGet('/stations')
+}
 
 export function getPatientStationStatus(patientId) {
   return apiGet(`/patients/${encodeURIComponent(patientId)}/station-status`)
 }
 
+export function getPatientStationSummary(patientId) {
+  return apiGet(`/patients/${encodeURIComponent(patientId)}/station-summary`)
+}
+
 export function getPatientStationEligibility(patientId) {
   return apiGet(`/patients/${encodeURIComponent(patientId)}/station-eligibility`)
+}
+
+export function recalculatePatientStationCounts(patientId) {
+  return apiPost(`/patients/${encodeURIComponent(patientId)}/station-counts/recalculate`, {})
 }

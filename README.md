@@ -17,7 +17,13 @@ src/api/authApi.js       # Login, signup, account deletion, password reset
 src/api/formsApi.js      # Patient form reads and submissions
 src/api/patientsApi.js   # Patient creation, lookup, names, and search
 src/api/stationsApi.js   # Patient station completion status and eligibility
-src/services/stationParity.js # Dev-only backend/frontend eligibility comparison helper
+src/reports/doctorPdf.js # Doctor consult PDF generation
+src/reports/formAPdf.js  # Form A PDF generation
+src/reports/patientReportPdf.js # Legacy patient report PDF generation
+src/reports/patientReportPdfUpdated.js # Current patient report PDF generation
+src/reports/pdfMake.js   # Shared pdfMake setup
+src/services/stationCounts.js # Backend-first station count recalculation helper
+src/services/stationFallbacks.js # Legacy frontend station rules for migration/offline fallback only
 ```
 
 Form components may still pass legacy collection names such as `registrationForm` or `triageForm`. The bridge in `src/forms/formKeys.js` maps those names to backend form keys such as `registration` and `triage`.
@@ -27,12 +33,43 @@ Form components may still pass legacy collection names such as `registrationForm
 For new frontend work:
 
 - Use `patientsApi`, `formsApi`, and `authApi` instead of direct `fetch('/api/...')`.
-- Use `stationsApi.getPatientStationStatus` for dashboard completion status and `stationsApi.getPatientStationEligibility` for backend eligibility. The current timeline keeps local fallbacks while backend parity is being validated.
-- In development, the dashboard logs station eligibility mismatches found by `stationParity.js`.
+- Use `stationsApi.getPatientStationSummary` for dashboard station display, completion, eligibility, and count data.
+- Use `stationsApi.getPatientStationEligibility` when a report or page needs the Form A style eligibility rows.
+- Use `stationsApi.recalculatePatientStationCounts` instead of writing station counts through generic collection routes.
 - Avoid passing MongoDB collection names from UI components when a domain key is available.
 - Add new form collection-to-key mappings in `src/forms/formKeys.js`.
 - Keep `services/mongoDB.js` compatibility behavior until old callers have been migrated.
-- `src/services/stationCounts.js` still exposes compatibility helpers. `updateAllStationCounts` now prefers backend eligibility and falls back to local rules.
+- `src/services/stationCounts.js` is backend-first. Its fallback path delegates to `src/services/stationFallbacks.js`.
+
+## Station Registry Notes
+
+The backend station module is now the source of truth for station configuration and rules:
+
+```text
+phs-app-backend/server/modules/forms/formRegistry.js       # Form key to MongoDB collection mapping
+phs-app-backend/server/modules/stations/stationRegistry.js # Station key, label, route, required forms, active flag
+phs-app-backend/server/modules/stations/stationEligibility.js # Named eligibility rules
+```
+
+The dashboard loads `GET /api/patients/:patientId/station-summary`, which returns active stations with completion and eligibility. `PatientTimeline.jsx` keeps an emergency hardcoded fallback list only so the dashboard can still render during backend station API failures. Do not treat that fallback list as the yearly station configuration.
+
+For yearly station changes:
+
+1. Add or update form metadata in backend `formRegistry.js`.
+2. Add or update the station entry in backend `stationRegistry.js`.
+3. Add or update the named rule in backend `stationEligibility.js`.
+4. Add or update the frontend route/component only if the station needs a new page.
+5. Add the frontend collection-to-key bridge in `src/forms/formKeys.js` if legacy components still pass a collection name.
+
+To disable a station for the year, prefer setting `active: false` in the backend station registry. This keeps old form data readable while hiding the station from the active dashboard flow.
+
+Stage 8 starts extracting report/PDF responsibilities from `src/api/api.jsx`. `generateDoctorPdf` now lives in `src/reports/doctorPdf.js`, with `src/api/api.jsx` re-exporting it as a compatibility facade so existing callers keep working.
+
+Stage 9 continues that report extraction. `generateFormAPdf` and its private Form A rendering helpers now live in `src/reports/formAPdf.js`, with `src/api/api.jsx` re-exporting it as a compatibility facade for existing callers.
+
+Stage 10A moves the legacy `generate_pdf` jsPDF report and its direct rendering helpers into `src/reports/patientReportPdf.js`. `src/api/api.jsx` continues to re-export those helpers as a compatibility facade for existing callers.
+
+Stage 10B moves `generate_pdf_updated` and its direct pdfMake section helpers into `src/reports/patientReportPdfUpdated.js`. `src/api/api.jsx` continues to re-export those helpers as a compatibility facade for existing callers.
 
 ## Past Versions
 
