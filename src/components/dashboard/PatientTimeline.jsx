@@ -19,7 +19,9 @@ import {
   getStations,
 } from 'src/api/stationsApi'
 
-const fallbackTimelineItems = [
+// Emergency fallback only. Backend station registry is the source of truth.
+// Update this list only if the dashboard must still render during backend station API failures.
+const emergencyFallbackTimelineItems = [
   { key: 'reg', label: 'Registration', path: 'reg' },
   { key: 'triage', label: 'Triage', path: 'triage' },
   { key: 'hxtaking', label: 'History Taking', path: 'hxtaking' },
@@ -204,7 +206,7 @@ const BasicTimeline = (props) => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [formDone, setFormDone] = useState({})
-  const [timelineItems, setTimelineItems] = useState(fallbackTimelineItems)
+  const [timelineItems, setTimelineItems] = useState(emergencyFallbackTimelineItems)
   const [admin, isAdmins] = useState(false)
   const { scrollTop } = useContext(ScrollTopContext)
 
@@ -257,7 +259,7 @@ const BasicTimeline = (props) => {
                 setTimelineItems(activeStations.map(toTimelineItem))
               }
             } catch {
-              setTimelineItems(fallbackTimelineItems)
+              setTimelineItems(emergencyFallbackTimelineItems)
             }
 
             const res = await getPatientStationStatus(props.patientId)
