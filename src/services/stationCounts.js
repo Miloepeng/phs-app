@@ -1,5 +1,5 @@
 import allForms from '../forms/forms.json'
-import { getPatientStationEligibility } from '../api/stationsApi'
+import { getPatientStationEligibility, getPatientStationSummary } from '../api/stationsApi'
 import { getSavedData, getSavedPatientData, updateStationCounts } from './mongoDB'
 
 export const getEligibilityRows = (forms = {}) => {
@@ -71,7 +71,7 @@ export const getEligibilityRows = (forms = {}) => {
     (hxsocial?.SOCIAL8 === 'Yes' && hxsocial?.SOCIAL9 === 'No') ||
     ophthal?.OphthalQ13 === 'Yes'
 
-  const isDentalEligible = 
+  const isDentalEligible =
     pmhx?.PMHX5?.includes('Diabetes/Pre-Diabetic') ||
     hxsocial?.SOCIAL10 === 'Yes' ||
     hxsocial?.SOCIAL11 === 'Yes' ||
@@ -150,16 +150,19 @@ export function computeVisitedStationsCount(record) {
 export const updateAllStationCounts = async (patientId) => {
   // fetch patient record (used for visited station logic)
   const patient = await getSavedPatientData(patientId, 'patients')
-  const visitedStationsCount = computeVisitedStationsCount(patient)
   let eligibleStations = []
   let eligibleStationsCount = 0
+  let visitedStations = []
   let usedBackendEligibility = false
+  let usedBackendSummary = false
 
   try {
-    const eligibility = await getPatientStationEligibility(patientId)
-    eligibleStations = eligibility.data?.eligibleStations || []
-    eligibleStationsCount = eligibleStations.length
+    const summary = await getPatientStationSummary(patientId)
+    eligibleStations = summary.data?.eligibleStations || []
+    eligibleStationsCount = summary.data?.eligibleStationCount ?? eligibleStations.length
+    visitedStations = summary.data?.visitedStations || []
     usedBackendEligibility = true
+    usedBackendSummary = true
   } catch {
     usedBackendEligibility = false
   }
@@ -214,17 +217,19 @@ export const updateAllStationCounts = async (patientId) => {
     eligibleStations = getEligibleStationNames(formData)
   }
 
-  const visitedStations = getVisitedStationNames(patient)
+  if (!usedBackendSummary) {
+    visitedStations = getVisitedStationNames(patient)
+  }
 
   await updateStationCounts(
     patientId,
-    visitedStationsCount,
+    visitedStations.length,
     eligibleStationsCount,
     visitedStations,
     eligibleStations,
   )
 
-  console.log('visited:', visitedStationsCount, 'eligible:', eligibleStationsCount)
+  console.log('visited:', visitedStations.length, 'eligible:', eligibleStationsCount)
   console.log('eligible stations:', eligibleStations)
   console.log('visited stations:', visitedStations)
 }
