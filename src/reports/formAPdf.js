@@ -2,8 +2,9 @@ import allForms from '../forms/forms.json'
 import { checkedBox, uncheckedBox } from '../icons/checked'
 import pic1 from '../icons/pic1-forma'
 import pic2 from '../icons/pic2-forma'
+import { getPatientStationEligibility } from '../api/stationsApi'
 import { getSavedData, getSavedPatientData } from '../services/mongoDB'
-import { getEligibilityRows } from '../services/stationCounts'
+import { getEligibilityRows } from '../services/stationFallbacks'
 import pdfMake from './pdfMake'
 
 export const generateFormAPdf = async (patientId) => {
@@ -35,7 +36,7 @@ export const generateFormAPdf = async (patientId) => {
     hxm4m5,
     hxgynae,
   }
-  const eligibilityRows = getEligibilityRows(formData)
+  const eligibilityRows = await getFormAEligibilityRows(patientId, formData)
   const patient = await getSavedPatientData(patientId, 'patients')
 
   const docDefinition = {
@@ -77,6 +78,20 @@ export const generateFormAPdf = async (patientId) => {
     fileName = patient.initials.split(' ').join('_') + '_FormA.pdf'
   }
   pdfMake.createPdf(docDefinition).download(fileName)
+}
+
+async function getFormAEligibilityRows(patientId, formData) {
+  try {
+    const eligibility = await getPatientStationEligibility(patientId)
+    const rows = eligibility.data?.rows || []
+    if (rows.length > 0) {
+      return rows
+    }
+  } catch {
+    // Keep PDF generation available if the backend eligibility endpoint is unavailable.
+  }
+
+  return getEligibilityRows(formData)
 }
 
 function patientIdSection(patient) {

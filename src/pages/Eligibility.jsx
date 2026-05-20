@@ -19,7 +19,7 @@ import {
   getEligibilityRows,
   computeVisitedStationsCount,
   getVisitedStationNames,
-} from '../services/stationCounts'
+} from '../services/stationFallbacks'
 import { generateFormAPdf } from '../api/api.jsx'
 import { getPatientStationEligibility, recalculatePatientStationCounts } from '../api/stationsApi'
 

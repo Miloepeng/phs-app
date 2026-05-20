@@ -18,7 +18,6 @@ import {
   getPatientStationStatus,
   getStations,
 } from 'src/api/stationsApi'
-import { compareStationEligibility } from 'src/services/stationParity'
 
 const fallbackTimelineItems = [
   { key: 'reg', label: 'Registration', path: 'reg' },
@@ -275,21 +274,6 @@ const BasicTimeline = (props) => {
           } catch {
             status = await loadLocalStatusFallback()
           }
-        }
-
-        if (import.meta.env.DEV) {
-          compareStationEligibility(props.patientId)
-            .then((comparison) => {
-              if (!comparison.matches) {
-                console.warn('Station eligibility mismatch', {
-                  patientId: comparison.patientId,
-                  differences: comparison.differences,
-                  frontendEligibleStations: comparison.frontendEligibleStations,
-                  backendEligibleStations: comparison.backendEligibleStations,
-                })
-              }
-            })
-            .catch(() => {})
         }
 
         setFormDone(status)
