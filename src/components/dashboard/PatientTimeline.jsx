@@ -12,55 +12,79 @@ import { ScrollTopContext } from '../../api/utils.js'
 import CircularProgress from '@mui/material/CircularProgress'
 import { Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
 import { getPatient } from 'src/api/patientsApi'
-import { getPatientStationEligibility, getPatientStationStatus } from 'src/api/stationsApi'
-import { compareStationEligibility } from 'src/services/stationParity'
+import {
+  getPatientStationEligibility,
+  getPatientStationSummary,
+  getPatientStationStatus,
+  getStations,
+} from 'src/api/stationsApi'
 
-// Timeline item configuration - add/delete stations here (comment out)
-const timelineItems = [
-  /*{ key: 'reg', label: 'Registration', path: 'reg' },
+// Emergency fallback only. Backend station registry is the source of truth.
+// Update this list only if the dashboard must still render during backend station API failures.
+const emergencyFallbackTimelineItems = [
+  { key: 'reg', label: 'Registration', path: 'reg' },
+  { key: 'triage', label: 'Triage', path: 'triage' },
   { key: 'hxtaking', label: 'History Taking', path: 'hxtaking' },
-  { key: 'triage', label: 'Triage', path: 'triage' },*/
-  { key: 'hsg', label: 'HealthierSG', path: 'hsg' },
-  { key: 'lungfn', label: 'Lung Function', path: 'lungfn' },
-  { key: 'wce', label: 'WCE', path: 'wce' },
-  // { key: 'osteo', label: 'Osteoporosis', path: 'osteoporosis' },
-  { key: 'podiatry', label: 'Podiatry', path: 'podiatry' },
-  { key: 'dietitiansconsult', label: "Dietitian's Consultation", path: 'dietitiansconsultation' },
-  { key: 'gericog', label: 'Geriatrics - Cognitive', path: 'gericog' },
-  { key: 'gerimobility', label: 'Geriatrics - Mobility', path: 'gerimobility' },
-  { key: 'ophthal', label: 'Ophthalmology', path: 'ophthal' },
-  { key: 'oralhealth', label: 'Oral Health', path: 'oralhealth' },
-  { key: 'socialservice', label: 'Social Services', path: 'socialservice' },
-  { key: 'mentalhealth', label: 'Mental Health', path: 'mentalhealth' },
-  { key: 'mammobus', label: 'Mammobus', path: 'mammobus' },
-  { key: 'hpv', label: 'HPV', path: 'hpv' },
-  { key: 'audio', label: 'Audiometry', path: 'audio' },
-  { key: 'vax', label: 'Vaccination', path: 'vax' },
-  { key: 'doctorsconsult', label: "Doctor's Station", path: 'doctorsconsult' },
+  { key: 'hsg', label: 'HealthierSG', path: 'hsg', eligibilityName: 'Healthier SG Booth' },
+  {
+    key: 'lungfn',
+    label: 'Lung Function',
+    path: 'lungfn',
+    eligibilityName: 'Lung Function Testing',
+  },
+  { key: 'wce', label: 'WCE', path: 'wce', eligibilityName: "Women's Cancer Education" },
+  { key: 'podiatry', label: 'Podiatry', path: 'podiatry', eligibilityName: 'Podiatry' },
+  {
+    key: 'dietitiansconsult',
+    label: "Dietitian's Consultation",
+    path: 'dietitiansconsultation',
+    eligibilityName: "Nutritionist's/Dietitian's Consult",
+  },
+  {
+    key: 'gericog',
+    label: 'Geriatrics - Cognitive',
+    path: 'gericog',
+    eligibilityName: 'Geriatric Screening',
+  },
+  {
+    key: 'gerimobility',
+    label: 'Geriatrics - Mobility',
+    path: 'gerimobility',
+    eligibilityName: 'Geriatric Screening',
+  },
+  { key: 'ophthal', label: 'Ophthalmology', path: 'ophthal', eligibilityName: 'Ophthalmology' },
+  { key: 'oralhealth', label: 'Oral Health', path: 'oralhealth', eligibilityName: 'Oral Health' },
+  {
+    key: 'socialservice',
+    label: 'Social Services',
+    path: 'socialservice',
+    eligibilityName: 'Social Services',
+  },
+  {
+    key: 'mentalhealth',
+    label: 'Mental Health',
+    path: 'mentalhealth',
+    eligibilityName: 'Mental Health',
+  },
+  { key: 'mammobus', label: 'Mammobus', path: 'mammobus', eligibilityName: 'Mammobus' },
+  { key: 'hpv', label: 'HPV', path: 'hpv', eligibilityName: 'HPV On-Site Testing' },
+  { key: 'audio', label: 'Audiometry', path: 'audio', eligibilityName: 'Audiometry' },
+  { key: 'vax', label: 'Vaccination', path: 'vax', eligibilityName: 'Vaccination' },
+  {
+    key: 'doctorsconsult',
+    label: "Doctor's Station",
+    path: 'doctorsconsult',
+    eligibilityName: "Doctor's Station",
+  },
 ]
 
-// Map between timeline keys and eligibility names -
-const eligibilityKeyMap = {
-  hxtaking: 'History Taking',
-  triage: 'Triage',
-  hsg: 'Healthier SG Booth',
-  lungfn: 'Lung Function Testing',
-  wce: "Women's Cancer Education",
-  osteo: 'Osteoporosis',
-  mentalhealth: 'Mental Health',
-  vax: 'Vaccination',
-  gericog: 'Geriatric Screening',
-  gerimobility: 'Geriatric Screening',
-  ophthal: 'Ophthalmology',
-  audio: 'Audiometry',
-  hpv: 'HPV On-Site Testing',
-  doctorsconsult: "Doctor's Station",
-  dietitiansconsult: "Dietitian's Consult",
-  socialservice: 'Social Services',
-  oralhealth: 'Oral Health',
-  mammobus: 'Mammobus',
-  podiatry: 'Podiatry',
-}
+const toTimelineItem = (station) => ({
+  key: station.key,
+  label: station.displayName,
+  path: station.route,
+  eligibilityName: station.eligibilityName,
+  eligible: station.eligible,
+})
 
 // Refactor the generateStatusArray to generate an object instead
 export function generateStatusObject(record) {
@@ -143,8 +167,11 @@ function navigateTo(event, navigate, page, scrollTop) {
 
 const TimelineItemComponent = ({ item, formDone, admin, navigate, scrollTop }) => {
   // Check if this station is eligible
-  const eligibilityName = eligibilityKeyMap[item.key]
-  const isEligible = formDone.eligibleStations?.includes(eligibilityName)
+  const eligibilityName = item.eligibilityName
+  const isEligible =
+    typeof item.eligible === 'boolean'
+      ? item.eligible
+      : formDone.eligibleStations?.includes(eligibilityName)
 
   // Determine dot color based on completion status and eligibility
   let dotColor
@@ -179,6 +206,7 @@ const BasicTimeline = (props) => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [formDone, setFormDone] = useState({})
+  const [timelineItems, setTimelineItems] = useState(emergencyFallbackTimelineItems)
   const [admin, isAdmins] = useState(false)
   const { scrollTop } = useContext(ScrollTopContext)
 
@@ -210,33 +238,44 @@ const BasicTimeline = (props) => {
       try {
         let status
         try {
-          const res = await getPatientStationStatus(props.patientId)
-          status = res.data
-          try {
-            const eligibilityRes = await getPatientStationEligibility(props.patientId)
-            status = {
-              ...status,
-              eligibleStations: eligibilityRes.data?.eligibleStations || status.eligibleStations,
-            }
-            if (import.meta.env.DEV) {
-              compareStationEligibility(props.patientId)
-                .then((comparison) => {
-                  if (!comparison.matches) {
-                    console.warn('Station eligibility mismatch', {
-                      patientId: comparison.patientId,
-                      differences: comparison.differences,
-                      frontendEligibleStations: comparison.frontendEligibleStations,
-                      backendEligibleStations: comparison.backendEligibleStations,
-                    })
-                  }
-                })
-                .catch(() => {})
-            }
-          } catch {
-            // Keep backend completion status even if backend eligibility is unavailable.
+          const summaryRes = await getPatientStationSummary(props.patientId)
+          const summary = summaryRes.data || {}
+          const activeStations = summary.stations || []
+
+          if (activeStations.length > 0) {
+            setTimelineItems(activeStations.map(toTimelineItem))
+          }
+
+          status = {
+            ...(summary.status || {}),
+            eligibleStations: summary.eligibleStations || summary.status?.eligibleStations || [],
           }
         } catch {
-          status = await loadLocalStatusFallback()
+          try {
+            try {
+              const stationsRes = await getStations()
+              const activeStations = stationsRes.data || []
+              if (activeStations.length > 0) {
+                setTimelineItems(activeStations.map(toTimelineItem))
+              }
+            } catch {
+              setTimelineItems(emergencyFallbackTimelineItems)
+            }
+
+            const res = await getPatientStationStatus(props.patientId)
+            status = res.data
+            try {
+              const eligibilityRes = await getPatientStationEligibility(props.patientId)
+              status = {
+                ...status,
+                eligibleStations: eligibilityRes.data?.eligibleStations || status.eligibleStations,
+              }
+            } catch {
+              // Keep backend completion status even if backend eligibility is unavailable.
+            }
+          } catch {
+            status = await loadLocalStatusFallback()
+          }
         }
 
         setFormDone(status)
@@ -264,54 +303,6 @@ const BasicTimeline = (props) => {
   } else {
     return (
       <Timeline>
-        {/* Registration as fixed item */}
-        <TimelineItem>
-          <TimelineSeparator>
-            <TimelineDot color={formDone?.reg ? 'primary' : 'grey'} />
-            <TimelineConnector />
-          </TimelineSeparator>
-          <TimelineContent>
-            <a href='/app/reg' onClick={(event) => navigateTo(event, navigate, 'reg', scrollTop)}>
-              Registration
-              {!formDone?.reg ? ' [Incomplete]' : admin ? ' [Edit]' : ' [Completed]'}
-            </a>
-          </TimelineContent>
-        </TimelineItem>
-
-        {/* Triage as fixed item */}
-        <TimelineItem>
-          <TimelineSeparator>
-            <TimelineDot color={formDone?.triage ? 'primary' : 'grey'} />
-            <TimelineConnector />
-          </TimelineSeparator>
-          <TimelineContent>
-            <a
-              href='/app/triage'
-              onClick={(event) => navigateTo(event, navigate, 'triage', scrollTop)}
-            >
-              Triage
-              {!formDone?.triage ? ' [Incomplete]' : admin ? ' [Edit]' : ' [Completed]'}
-            </a>
-          </TimelineContent>
-        </TimelineItem>
-
-        {/* History Taking as fixed item */}
-        <TimelineItem>
-          <TimelineSeparator>
-            <TimelineDot color={formDone?.hxtaking ? 'primary' : 'grey'} />
-            <TimelineConnector />
-          </TimelineSeparator>
-          <TimelineContent>
-            <a
-              href='/app/hxtaking'
-              onClick={(event) => navigateTo(event, navigate, 'hxtaking', scrollTop)}
-            >
-              History Taking
-              {!formDone?.hxtaking ? ' [Incomplete]' : admin ? ' [Edit]' : ' [Completed]'}
-            </a>
-          </TimelineContent>
-        </TimelineItem>
-
         {timelineItems.map((item) => (
           <TimelineItemComponent
             key={item.key}
@@ -326,7 +317,9 @@ const BasicTimeline = (props) => {
         {/* Summary and End items */}
         <TimelineItem>
           <TimelineSeparator>
-            <TimelineDot color={Object.values(formDone).every(Boolean) ? 'primary' : 'grey'} />
+            <TimelineDot
+              color={timelineItems.every((item) => formDone?.[item.key]) ? 'primary' : 'grey'}
+            />
             <TimelineConnector />
           </TimelineSeparator>
           <TimelineContent>
@@ -341,7 +334,9 @@ const BasicTimeline = (props) => {
 
         <TimelineItem>
           <TimelineSeparator>
-            <TimelineDot color={Object.values(formDone).every(Boolean) ? 'primary' : 'grey'} />
+            <TimelineDot
+              color={timelineItems.every((item) => formDone?.[item.key]) ? 'primary' : 'grey'}
+            />
           </TimelineSeparator>
           <TimelineContent>END</TimelineContent>
         </TimelineItem>

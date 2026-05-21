@@ -12,12 +12,6 @@ import {
 import CircularProgress from '@mui/material/CircularProgress'
 import { Helmet } from 'react-helmet-async'
 
-import pdfMake from 'pdfmake/build/pdfmake'
-import pdfFonts from 'pdfmake/build/vfs_fonts'
-pdfMake.vfs = pdfFonts.vfs
-
-import { parseFromLangKey, setLang } from '../api/langutil'
-
 import { getSavedData, getSavedPatientData, updateStationCounts } from '../services/mongoDB'
 import { FormContext } from '../api/utils.js'
 import allForms from '../forms/forms.json'
@@ -25,24 +19,47 @@ import {
   getEligibilityRows,
   computeVisitedStationsCount,
   getVisitedStationNames,
-} from '../services/stationCounts'
+} from '../services/stationFallbacks'
 import { generateFormAPdf } from '../api/api.jsx'
+import { getPatientStationEligibility, recalculatePatientStationCounts } from '../api/stationsApi'
 
 // Eligibility page
 
 function Eligibility() {
   const { patientId } = useContext(FormContext)
-  const [forms, setForms] = useState(null)
-  const [patient, setPatient] = useState(null)
   const [rows, setRows] = useState([])
   const [loadingPrevData, isLoadingPrevData] = useState(true)
-  const generatePDFRef = useRef(() => { })
+  const generatePDFRef = useRef(() => {})
 
   useEffect(() => {
     const loadAndCompute = async () => {
       isLoadingPrevData(true)
+
+      try {
+        const [eligibility] = await Promise.all([
+          getPatientStationEligibility(patientId),
+          recalculatePatientStationCounts(patientId),
+        ])
+        setRows(eligibility.data?.rows || [])
+        isLoadingPrevData(false)
+        return
+      } catch {
+        // Keep local computation as a migration fallback.
+      }
+
       const [
-        pmhx, hxsocial, reg, hxfamily, triage, hcsr, hxoral, wce, phq, hxm4m5, hxgynae, ophthal
+        pmhx,
+        hxsocial,
+        reg,
+        hxfamily,
+        triage,
+        hcsr,
+        hxoral,
+        wce,
+        phq,
+        hxm4m5,
+        hxgynae,
+        ophthal,
       ] = await Promise.all([
         getSavedData(patientId, allForms.hxNssForm),
         getSavedData(patientId, allForms.hxSocialForm),
@@ -55,9 +72,8 @@ function Eligibility() {
         getSavedData(patientId, allForms.geriPhqForm),
         getSavedData(patientId, allForms.hxM4M5ReviewForm),
         getSavedData(patientId, allForms.hxGynaeForm),
-        getSavedData(patientId, allForms.ophthalForm)
+        getSavedData(patientId, allForms.ophthalForm),
       ])
-      isLoadingPrevData(false)
 
       const formData = {
         reg: reg || {},
@@ -74,10 +90,7 @@ function Eligibility() {
         ophthal: ophthal || {},
       }
 
-      setForms(formData)
-
       const patient = await getSavedPatientData(patientId, 'patients')
-      setPatient(patient)
       const visitedCount = computeVisitedStationsCount(patient)
 
       const eligibilityRows = getEligibilityRows(formData)
@@ -102,10 +115,10 @@ function Eligibility() {
       console.log('visited:', visitedCount, 'eligible:', eligibleCount)
       console.log('visited stations:', visitedStationNames)
       console.log('eligible stations:', eligibleStationNames)
+      isLoadingPrevData(false)
     }
 
-    if (patientId !== null && patientId !== undefined)
-      loadAndCompute()
+    if (patientId !== null && patientId !== undefined) loadAndCompute()
   }, [patientId])
 
   generatePDFRef.current = async () => {
