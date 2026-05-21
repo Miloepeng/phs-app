@@ -4,7 +4,7 @@ import { Formik, Form, useFormikContext, FastField } from 'formik'
 import * as Yup from 'yup'
 import { FormContext } from '../../api/utils.js'
 import { getSavedData } from '../../services/patientData'
-import { submitForm, checkFormA } from '../../api/api.jsx'
+import { submitForm } from '../../api/api.jsx'
 import PopupText from 'src/utils/popupText.jsx'
 import CustomRadioGroup from '../../components/form-components/CustomRadioGroup'
 import CustomTextField from 'src/components/form-components/CustomTextField.jsx'
@@ -177,7 +177,6 @@ export default function HxPhqForm({ changeTab, nextTab }) {
     setLoading(false)
     setSubmitting(false)
     if (response.result) {
-      checkFormA(response.qNum)
       alert('Successfully submitted form')
       changeTab(null, nextTab)
     } else {

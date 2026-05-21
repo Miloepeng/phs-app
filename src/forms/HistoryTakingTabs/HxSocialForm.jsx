@@ -4,7 +4,7 @@ import * as Yup from 'yup'
 import { Paper, Divider, CircularProgress, Button, Typography } from '@mui/material'
 import { FormContext } from '../../api/utils.js'
 import { getSavedData } from '../../services/patientData'
-import { submitForm, checkFormA } from '../../api/api.jsx'
+import { submitForm } from '../../api/api.jsx'
 import CustomTextField from '../../components/form-components/CustomTextField'
 import CustomRadioGroup from '../../components/form-components/CustomRadioGroup.jsx'
 import CustomNumberField from 'src/components/form-components/CustomNumberField.jsx'
@@ -186,7 +186,6 @@ export default function HxSocialForm({ changeTab, nextTab }) {
     setLoading(false)
     setSubmitting(false)
     if (response.result) {
-      checkFormA(response.qNum)
       alert('Successfully submitted form')
       changeTab(null, nextTab)
     } else {

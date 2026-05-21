@@ -1,6 +1,5 @@
 import {
   addDoctorPdfQueueEntry,
-  addFormAQueueEntry,
   deleteDoctorPdfQueueEntry,
   deleteFormAQueueEntry,
   getPrintedDoctorPdfQueue,
@@ -52,12 +51,6 @@ export const getPrintedFormAPdfQueue = async () => {
   if (!isLoggedin()) return []
   const response = await getPrintedFormAQueue()
   return response.data || []
-}
-
-export const addToFormAQueue = async (patientId) => {
-  if (!isLoggedin()) return false
-  await addFormAQueueEntry(patientId)
-  return true
 }
 
 export const markFormAAsPrinted = async (docId) => {

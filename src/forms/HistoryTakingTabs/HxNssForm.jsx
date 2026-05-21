@@ -3,7 +3,7 @@ import { FastField, Form, Formik } from 'formik'
 import { useContext, useEffect, useState } from 'react'
 import PopupText from 'src/utils/popupText.jsx'
 import * as Yup from 'yup'
-import { submitForm, checkFormA } from '../../api/api.jsx'
+import { submitForm } from '../../api/api.jsx'
 import { FormContext } from '../../api/utils.js'
 import CustomTextField from 'src/components/form-components/CustomTextField.jsx'
 import CustomCheckboxGroup from '../../components/form-components/CustomCheckboxGroup'
@@ -106,7 +106,6 @@ export default function HxNssForm({ changeTab, nextTab }) {
     setLoading(false)
     setSubmitting(false)
     if (response.result) {
-      checkFormA(response.qNum)
       alert('Successfully submitted form')
       changeTab(null, nextTab)
     } else {

@@ -1,8 +1,3 @@
-import { getSavedPatientData } from '../services/patientData'
-import { addToFormAQueue } from '../services/printQueues'
-
-import { generateStatusObject } from 'src/components/dashboard/PatientTimeline'
-
 import { createPatient } from './patientsApi'
 import { submitPatientForm } from './formsApi'
 import { toFormKey } from '../forms/formKeys'
@@ -427,11 +422,3 @@ export const regexPasswordPattern =
 // console.log(await mongoDBConnection.collection("profiles").deleteMany({is_admin:{$eq : undefined}}))
 // }
 
-export const checkFormA = async (patientId) => {
-  const patient = await getSavedPatientData(patientId, 'patients')
-  const status = generateStatusObject(patient)
-
-  if (status.reg && status.triage && status.hxtaking) {
-    await addToFormAQueue(patientId)
-  }
-}

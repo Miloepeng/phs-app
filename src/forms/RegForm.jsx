@@ -5,7 +5,7 @@ import { validationSchema } from './registrationSchema'
 
 import { Divider, Paper, CircularProgress, Button, TextField, Typography, Box } from '@mui/material'
 
-import { submitForm, checkFormA } from '../api/api.jsx'
+import { submitForm } from '../api/api.jsx'
 import { FormContext } from '../api/utils.js'
 import { getSavedData } from '../services/patientData'
 import PopupText from 'src/utils/popupText'
@@ -117,7 +117,6 @@ const RegForm = () => {
         console.log('Successfully submitted form')
         updatePatientInfo(response.data)
         updatePatientId(response.qNum)
-        checkFormA(response.qNum)
         navigate('/app/dashboard', { replace: true })
       }, 80)
     } else {

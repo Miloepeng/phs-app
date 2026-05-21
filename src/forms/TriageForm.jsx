@@ -6,7 +6,7 @@ import { Typography } from '@mui/material'
 
 import { Divider, Paper, CircularProgress, Button, Box, Grid } from '@mui/material'
 
-import { submitForm, formatBmi, checkFormA } from '../api/api.jsx'
+import { submitForm, formatBmi } from '../api/api.jsx'
 import { FormContext } from '../api/utils.js'
 import { getSavedData } from '../services/patientData'
 import './fieldPadding.css'
@@ -150,7 +150,6 @@ const TriageForm = () => {
     const response = await submitForm(model, patientId, formName)
 
     if (response.result) {
-      await checkFormA(patientId)
       isLoading(false)
       setSubmitting(false)
       setTimeout(() => {
