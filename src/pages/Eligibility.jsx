@@ -1,5 +1,6 @@
 import React, { useState, useContext, useEffect, useRef } from 'react'
 import {
+  Alert,
   Box,
   TableContainer,
   Table,
@@ -12,14 +13,7 @@ import {
 import CircularProgress from '@mui/material/CircularProgress'
 import { Helmet } from 'react-helmet-async'
 
-import { getSavedData, getSavedPatientData, updateStationCounts } from '../services/mongoDB'
 import { FormContext } from '../api/utils.js'
-import allForms from '../forms/forms.json'
-import {
-  getEligibilityRows,
-  computeVisitedStationsCount,
-  getVisitedStationNames,
-} from '../services/stationFallbacks'
 import { generateFormAPdf } from '../api/api.jsx'
 import { getPatientStationEligibility, recalculatePatientStationCounts } from '../api/stationsApi'
 
@@ -29,100 +23,47 @@ function Eligibility() {
   const { patientId } = useContext(FormContext)
   const [rows, setRows] = useState([])
   const [loadingPrevData, isLoadingPrevData] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const generatePDFRef = useRef(() => {})
 
   useEffect(() => {
-    const loadAndCompute = async () => {
+    let mounted = true
+
+    const loadStationEligibility = async () => {
       isLoadingPrevData(true)
+      setLoadError('')
 
       try {
         const [eligibility] = await Promise.all([
           getPatientStationEligibility(patientId),
           recalculatePatientStationCounts(patientId),
         ])
-        setRows(eligibility.data?.rows || [])
-        isLoadingPrevData(false)
-        return
-      } catch {
-        // Keep local computation as a migration fallback.
+        if (mounted) setRows(eligibility.data?.rows || [])
+      } catch (error) {
+        console.error('Failed to load backend station eligibility:', error)
+        if (mounted) {
+          setRows([])
+          setLoadError('Unable to load station eligibility from the backend.')
+        }
+      } finally {
+        if (mounted) isLoadingPrevData(false)
       }
-
-      const [
-        pmhx,
-        hxsocial,
-        reg,
-        hxfamily,
-        triage,
-        hcsr,
-        hxoral,
-        wce,
-        phq,
-        hxm4m5,
-        hxgynae,
-        ophthal,
-      ] = await Promise.all([
-        getSavedData(patientId, allForms.hxNssForm),
-        getSavedData(patientId, allForms.hxSocialForm),
-        getSavedData(patientId, allForms.registrationForm),
-        getSavedData(patientId, allForms.hxFamilyForm),
-        getSavedData(patientId, allForms.triageForm),
-        getSavedData(patientId, allForms.hxHcsrForm),
-        getSavedData(patientId, allForms.hxOralForm),
-        getSavedData(patientId, allForms.wceForm),
-        getSavedData(patientId, allForms.geriPhqForm),
-        getSavedData(patientId, allForms.hxM4M5ReviewForm),
-        getSavedData(patientId, allForms.hxGynaeForm),
-        getSavedData(patientId, allForms.ophthalForm),
-      ])
-
-      const formData = {
-        reg: reg || {},
-        pmhx: pmhx || {},
-        hxsocial: hxsocial || {},
-        hxfamily: hxfamily || {},
-        triage: triage || {},
-        hcsr: hcsr || {},
-        hxoral: hxoral || {},
-        wce: wce || {},
-        phq: phq || {},
-        hxm4m5: hxm4m5 || {},
-        hxgynae: hxgynae || {},
-        ophthal: ophthal || {},
-      }
-
-      const patient = await getSavedPatientData(patientId, 'patients')
-      const visitedCount = computeVisitedStationsCount(patient)
-
-      const eligibilityRows = getEligibilityRows(formData)
-      const eligibleCount = eligibilityRows.filter((r) => r.eligibility === 'YES').length
-      setRows(eligibilityRows)
-
-      // NEW: Get the actual station names (not just counts)
-      const visitedStationNames = getVisitedStationNames(patient)
-      const eligibleStationNames = eligibilityRows
-        .filter((r) => r.eligibility === 'YES')
-        .map((r) => r.name)
-
-      // Update existing counts and station names
-      await updateStationCounts(
-        patientId,
-        visitedCount,
-        eligibleCount,
-        visitedStationNames,
-        eligibleStationNames,
-      )
-
-      console.log('visited:', visitedCount, 'eligible:', eligibleCount)
-      console.log('visited stations:', visitedStationNames)
-      console.log('eligible stations:', eligibleStationNames)
-      isLoadingPrevData(false)
     }
 
-    if (patientId !== null && patientId !== undefined) loadAndCompute()
+    if (patientId !== null && patientId !== undefined) loadStationEligibility()
+
+    return () => {
+      mounted = false
+    }
   }, [patientId])
 
   generatePDFRef.current = async () => {
-    await generateFormAPdf(patientId)
+    try {
+      await generateFormAPdf(patientId)
+    } catch (error) {
+      console.error('Failed to generate Form A PDF:', error)
+      alert('Unable to generate Form A PDF because backend station eligibility is unavailable.')
+    }
   }
 
   return (
@@ -142,6 +83,11 @@ function Eligibility() {
         ) : (
           <Button onClick={() => generatePDFRef.current()}>Download Form A</Button>
         )}
+        {loadError ? (
+          <Alert severity='error' sx={{ my: 2 }}>
+            {loadError}
+          </Alert>
+        ) : null}
         <TableContainer>
           <Table>
             <TableHead>

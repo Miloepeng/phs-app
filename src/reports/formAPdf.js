@@ -4,39 +4,16 @@ import pic1 from '../icons/pic1-forma'
 import pic2 from '../icons/pic2-forma'
 import { getPatientStationEligibility } from '../api/stationsApi'
 import { getSavedData, getSavedPatientData } from '../services/mongoDB'
-import { getEligibilityRows } from '../services/stationFallbacks'
 import pdfMake from './pdfMake'
 
 export const generateFormAPdf = async (patientId) => {
-  const [pmhx, hxsocial, reg, hxfamily, triage, hcsr, hxoral, wce, phq, hxm4m5, hxgynae] =
-    await Promise.all([
-      getSavedData(patientId, allForms.hxNssForm),
-      getSavedData(patientId, allForms.hxSocialForm),
-      getSavedData(patientId, allForms.registrationForm),
-      getSavedData(patientId, allForms.hxFamilyForm),
-      getSavedData(patientId, allForms.triageForm),
-      getSavedData(patientId, allForms.hxHcsrForm),
-      getSavedData(patientId, allForms.hxOralForm),
-      getSavedData(patientId, allForms.wceForm),
-      getSavedData(patientId, allForms.geriPhqForm),
-      getSavedData(patientId, allForms.hxM4M5ReviewForm),
-      getSavedData(patientId, allForms.hxGynaeForm),
-    ])
+  const [pmhx, reg, triage] = await Promise.all([
+    getSavedData(patientId, allForms.hxNssForm),
+    getSavedData(patientId, allForms.registrationForm),
+    getSavedData(patientId, allForms.triageForm),
+  ])
 
-  const formData = {
-    reg,
-    pmhx,
-    hxsocial,
-    hxfamily,
-    triage,
-    hcsr,
-    hxoral,
-    wce,
-    phq,
-    hxm4m5,
-    hxgynae,
-  }
-  const eligibilityRows = await getFormAEligibilityRows(patientId, formData)
+  const eligibilityRows = await getFormAEligibilityRows(patientId)
   const patient = await getSavedPatientData(patientId, 'patients')
 
   const docDefinition = {
@@ -80,18 +57,15 @@ export const generateFormAPdf = async (patientId) => {
   pdfMake.createPdf(docDefinition).download(fileName)
 }
 
-async function getFormAEligibilityRows(patientId, formData) {
-  try {
-    const eligibility = await getPatientStationEligibility(patientId)
-    const rows = eligibility.data?.rows || []
-    if (rows.length > 0) {
-      return rows
-    }
-  } catch {
-    // Keep PDF generation available if the backend eligibility endpoint is unavailable.
+async function getFormAEligibilityRows(patientId) {
+  const eligibility = await getPatientStationEligibility(patientId)
+  const rows = eligibility.data?.rows || []
+
+  if (rows.length === 0) {
+    throw new Error('Backend returned no station eligibility rows.')
   }
 
-  return getEligibilityRows(formData)
+  return rows
 }
 
 function patientIdSection(patient) {

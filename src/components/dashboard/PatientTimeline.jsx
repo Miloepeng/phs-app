@@ -10,73 +10,8 @@ import { useNavigate } from 'react-router-dom'
 import { isAdmin } from '../../services/mongoDB'
 import { ScrollTopContext } from '../../api/utils.js'
 import CircularProgress from '@mui/material/CircularProgress'
-import { Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
-import { getPatient } from 'src/api/patientsApi'
-import {
-  getPatientStationEligibility,
-  getPatientStationSummary,
-  getPatientStationStatus,
-  getStations,
-} from 'src/api/stationsApi'
-
-// Emergency fallback only. Backend station registry is the source of truth.
-// Update this list only if the dashboard must still render during backend station API failures.
-const emergencyFallbackTimelineItems = [
-  { key: 'reg', label: 'Registration', path: 'reg' },
-  { key: 'triage', label: 'Triage', path: 'triage' },
-  { key: 'hxtaking', label: 'History Taking', path: 'hxtaking' },
-  { key: 'hsg', label: 'HealthierSG', path: 'hsg', eligibilityName: 'Healthier SG Booth' },
-  {
-    key: 'lungfn',
-    label: 'Lung Function',
-    path: 'lungfn',
-    eligibilityName: 'Lung Function Testing',
-  },
-  { key: 'wce', label: 'WCE', path: 'wce', eligibilityName: "Women's Cancer Education" },
-  { key: 'podiatry', label: 'Podiatry', path: 'podiatry', eligibilityName: 'Podiatry' },
-  {
-    key: 'dietitiansconsult',
-    label: "Dietitian's Consultation",
-    path: 'dietitiansconsultation',
-    eligibilityName: "Nutritionist's/Dietitian's Consult",
-  },
-  {
-    key: 'gericog',
-    label: 'Geriatrics - Cognitive',
-    path: 'gericog',
-    eligibilityName: 'Geriatric Screening',
-  },
-  {
-    key: 'gerimobility',
-    label: 'Geriatrics - Mobility',
-    path: 'gerimobility',
-    eligibilityName: 'Geriatric Screening',
-  },
-  { key: 'ophthal', label: 'Ophthalmology', path: 'ophthal', eligibilityName: 'Ophthalmology' },
-  { key: 'oralhealth', label: 'Oral Health', path: 'oralhealth', eligibilityName: 'Oral Health' },
-  {
-    key: 'socialservice',
-    label: 'Social Services',
-    path: 'socialservice',
-    eligibilityName: 'Social Services',
-  },
-  {
-    key: 'mentalhealth',
-    label: 'Mental Health',
-    path: 'mentalhealth',
-    eligibilityName: 'Mental Health',
-  },
-  { key: 'mammobus', label: 'Mammobus', path: 'mammobus', eligibilityName: 'Mammobus' },
-  { key: 'hpv', label: 'HPV', path: 'hpv', eligibilityName: 'HPV On-Site Testing' },
-  { key: 'audio', label: 'Audiometry', path: 'audio', eligibilityName: 'Audiometry' },
-  { key: 'vax', label: 'Vaccination', path: 'vax', eligibilityName: 'Vaccination' },
-  {
-    key: 'doctorsconsult',
-    label: "Doctor's Station",
-    path: 'doctorsconsult',
-    eligibilityName: "Doctor's Station",
-  },
-]
+import { Alert, Box, Card, CardContent, CardHeader, Divider } from '@mui/material'
+import { getPatientStationSummary } from 'src/api/stationsApi'
 
 const toTimelineItem = (station) => ({
   key: station.key,
@@ -206,87 +141,49 @@ const BasicTimeline = (props) => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [formDone, setFormDone] = useState({})
-  const [timelineItems, setTimelineItems] = useState(emergencyFallbackTimelineItems)
+  const [timelineItems, setTimelineItems] = useState([])
+  const [loadError, setLoadError] = useState('')
   const [admin, isAdmins] = useState(false)
   const { scrollTop } = useContext(ScrollTopContext)
 
   useEffect(() => {
-    // const createFormsStatus = async () => {
-    //   try {
-    //     const mongoConnection = mongoDB.currentUser.mongoClient('mongodb-atlas')
-    //     const patientsRecord = mongoConnection.db('phs').collection('patients')
-    //     // patientId must be valid for this component to even render
-    //     // checks done in parent component Dashboard.js
-    //     // hence, if there is no record, likely there is implementation bug
-    //     const record = await patientsRecord.findOne({ queueNo: props.patientId })
-
-    //     setFormDone(generateStatusObject(record))
-    //     setLoading(false)
-    //     isAdmins(await isAdmin())
-    //   } catch (err) {
-    //     alert(err)
-    //     console.log('error is here')
-    //     navigate('/app/registration', { replace: true })
-    //   }
-    // }
-    const loadLocalStatusFallback = async () => {
-      const res = await getPatient(props.patientId)
-      return generateStatusObject(res.data)
-    }
+    let mounted = true
 
     const createFormsStatus = async () => {
+      setLoading(true)
+      setLoadError('')
+
       try {
-        let status
-        try {
-          const summaryRes = await getPatientStationSummary(props.patientId)
-          const summary = summaryRes.data || {}
-          const activeStations = summary.stations || []
-
-          if (activeStations.length > 0) {
-            setTimelineItems(activeStations.map(toTimelineItem))
-          }
-
-          status = {
-            ...(summary.status || {}),
-            eligibleStations: summary.eligibleStations || summary.status?.eligibleStations || [],
-          }
-        } catch {
-          try {
-            try {
-              const stationsRes = await getStations()
-              const activeStations = stationsRes.data || []
-              if (activeStations.length > 0) {
-                setTimelineItems(activeStations.map(toTimelineItem))
-              }
-            } catch {
-              setTimelineItems(emergencyFallbackTimelineItems)
-            }
-
-            const res = await getPatientStationStatus(props.patientId)
-            status = res.data
-            try {
-              const eligibilityRes = await getPatientStationEligibility(props.patientId)
-              status = {
-                ...status,
-                eligibleStations: eligibilityRes.data?.eligibleStations || status.eligibleStations,
-              }
-            } catch {
-              // Keep backend completion status even if backend eligibility is unavailable.
-            }
-          } catch {
-            status = await loadLocalStatusFallback()
-          }
+        const summaryRes = await getPatientStationSummary(props.patientId)
+        const summary = summaryRes.data || {}
+        const activeStations = summary.stations || []
+        const status = {
+          ...(summary.status || {}),
+          eligibleStations: summary.eligibleStations || summary.status?.eligibleStations || [],
         }
 
-        setFormDone(status)
-        setLoading(false)
-        isAdmins(await isAdmin())
+        if (mounted) {
+          setTimelineItems(activeStations.map(toTimelineItem))
+          setFormDone(status)
+          isAdmins(await isAdmin())
+        }
       } catch (err) {
-        alert(err)
-        navigate('/app/registration', { replace: true })
+        console.error('Failed to load backend station summary:', err)
+        if (mounted) {
+          setLoadError('Unable to load station progress from the backend.')
+          setTimelineItems([])
+          setFormDone({})
+        }
+      } finally {
+        if (mounted) setLoading(false)
       }
     }
+
     createFormsStatus()
+
+    return () => {
+      mounted = false
+    }
   }, [navigate, props.patientId])
   if (loading) {
     return (
@@ -301,6 +198,10 @@ const BasicTimeline = (props) => {
       </div>
     )
   } else {
+    if (loadError) {
+      return <Alert severity='error'>{loadError}</Alert>
+    }
+
     return (
       <Timeline>
         {timelineItems.map((item) => (

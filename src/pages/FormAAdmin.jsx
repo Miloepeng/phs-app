@@ -93,9 +93,23 @@ const FormAAdmin = () => {
   }, [refresh])
 
   const handlePrint = async (entry) => {
-    await generateFormAPdf(entry.patientId)
-    await markFormAAsPrinted(entry._id)
-    setRefresh((r) => !r)
+    try {
+      await generateFormAPdf(entry.patientId)
+      await markFormAAsPrinted(entry._id)
+      setRefresh((r) => !r)
+    } catch (error) {
+      console.error('Failed to generate Form A PDF:', error)
+      alert('Unable to generate Form A PDF because backend station eligibility is unavailable.')
+    }
+  }
+
+  const handleReprint = async (patientId) => {
+    try {
+      await generateFormAPdf(patientId)
+    } catch (error) {
+      console.error('Failed to generate Form A PDF:', error)
+      alert('Unable to generate Form A PDF because backend station eligibility is unavailable.')
+    }
   }
 
   // Update the handleRemove function:
@@ -152,7 +166,7 @@ const FormAAdmin = () => {
                   Created At: {new Date(entry.createdAt).toLocaleString()}
                 </Typography>
               </Box>
-              <Button variant='outlined' onClick={() => generateFormAPdf(entry.patientId)}>
+              <Button variant='outlined' onClick={() => handleReprint(entry.patientId)}>
                 Reprint
               </Button>
             </Paper>
